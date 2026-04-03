@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interpret Layer</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400&family=Noto+Serif+JP:wght@200;300;400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --void:#080c18;--deep:#0c1228;--ink:#101830;
+  --blue:#4080e0;--blue-bright:#80b0ff;--blue-dim:#202860;
+  --cyan:#20c0d0;--cyan-bright:#60e8f8;
+  --gold:#c9a84c;--gold-bright:#f0d080;
+  --text:#d8e8ff;--text-dim:#405070;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--void);color:var(--text);font-family:'Noto Serif JP',serif;font-weight:200;min-height:100vh;overflow-x:hidden;}
+#bgCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;width:100%;height:100%;}
+.wrap{position:relative;z-index:1;max-width:720px;margin:0 auto;padding:0 20px;}
+
+header{text-align:center;padding:72px 0 28px;}
+.sigil{width:76px;height:76px;margin:0 auto 18px;}
+.sigil svg{width:100%;height:100%;animation:glow 3s ease-in-out infinite;}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 6px rgba(64,128,224,0.4))}50%{filter:drop-shadow(0 0 20px rgba(64,128,224,0.9))}}
+h1{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:clamp(1.8rem,5vw,2.8rem);letter-spacing:0.25em;color:var(--blue-bright);text-shadow:0 0 30px rgba(64,128,224,0.5);margin-bottom:6px;}
+.subtitle{font-size:0.68rem;letter-spacing:0.28em;color:var(--text-dim);margin-bottom:28px;}
+
+/* APIキー */
+.form-box{border:1px solid rgba(64,128,224,0.15);padding:22px;background:rgba(12,18,40,0.75);backdrop-filter:blur(10px);margin-bottom:20px;position:relative;}
+.corner{position:absolute;width:12px;height:12px;border-color:var(--blue-dim);border-style:solid;}
+.corner.tl{top:-1px;left:-1px;border-width:1px 0 0 1px;}
+.corner.tr{top:-1px;right:-1px;border-width:1px 1px 0 0;}
+.corner.bl{bottom:-1px;left:-1px;border-width:0 0 1px 1px;}
+.corner.br{bottom:-1px;right:-1px;border-width:0 1px 1px 0;}
+.field label{display:block;font-size:0.62rem;letter-spacing:0.15em;color:var(--text-dim);margin-bottom:5px;}
+.field textarea{width:100%;background:rgba(64,128,224,0.04);border:1px solid rgba(64,128,224,0.15);border-radius:1px;color:var(--text);padding:10px 14px;outline:none;font-family:monospace;font-size:0.8rem;transition:border-color .3s;resize:vertical;}
+.field textarea:focus{border-color:rgba(64,128,224,0.5);}
+
+/* メイン通訳エリア */
+.interp-wrap{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+@media(max-width:480px){.interp-wrap{grid-template-columns:1fr;}}
+
+.interp-panel{border:1px solid rgba(64,128,224,0.15);background:rgba(12,18,40,0.7);backdrop-filter:blur(10px);position:relative;min-height:220px;display:flex;flex-direction:column;}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(64,128,224,0.1);}
+.panel-lang{font-size:0.65rem;letter-spacing:0.18em;color:var(--blue-bright);}
+.panel-flag{font-size:1.1rem;}
+.panel-body{flex:1;padding:14px;}
+.speech-text{font-size:0.85rem;line-height:1.9;letter-spacing:0.05em;color:var(--text);min-height:80px;}
+.speech-text.interim{color:var(--text-dim);font-style:italic;}
+.translation-text{font-size:0.82rem;line-height:1.9;letter-spacing:0.05em;color:var(--cyan-bright);margin-top:10px;padding-top:10px;border-top:1px solid rgba(64,128,224,0.08);min-height:60px;}
+.translation-label{font-size:0.58rem;letter-spacing:0.18em;color:var(--text-dim);margin-bottom:4px;}
+.translating-indicator{font-size:0.68rem;color:var(--blue-bright);letter-spacing:0.12em;animation:blink 1s ease-in-out infinite;display:none;}
+.translating-indicator.show{display:block;}
+@keyframes blink{0%,100%{opacity:0.3}50%{opacity:1}}
+
+/* コントロール */
+.controls{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+.mic-btn{
+  width:100%;padding:18px;background:transparent;
+  border:1px solid rgba(64,128,224,0.4);color:var(--blue-bright);
+  font-family:inherit;font-size:0.85rem;letter-spacing:0.2em;
+  cursor:pointer;transition:all .3s;touch-action:manipulation;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.mic-btn:hover{background:rgba(64,128,224,0.08);border-color:rgba(64,128,224,0.7);}
+.mic-btn.recording{
+  border-color:var(--cyan);color:var(--cyan-bright);
+  background:rgba(32,192,208,0.08);
+  box-shadow:0 0 20px rgba(32,192,208,0.2);
+  animation:pulse-border 1.5s ease-in-out infinite;
+}
+@keyframes pulse-border{0%,100%{box-shadow:0 0 10px rgba(32,192,208,0.2)}50%{box-shadow:0 0 30px rgba(32,192,208,0.4)}}
+.mic-icon{font-size:1.4rem;}
+.mic-status{font-size:0.65rem;letter-spacing:0.15em;color:var(--text-dim);text-align:center;}
+
+.lang-select-wrap{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;}
+.lang-select{width:100%;background:rgba(64,128,224,0.04);border:1px solid rgba(64,128,224,0.15);color:var(--text);padding:10px 12px;font-family:inherit;font-size:0.78rem;outline:none;cursor:pointer;}
+.lang-select option{background:#0c1228;}
+.lang-arrow{text-align:center;color:var(--blue-bright);font-size:1.1rem;}
+
+.clear-btn{width:100%;padding:11px;background:transparent;border:1px solid rgba(64,128,224,0.15);color:var(--text-dim);font-family:inherit;font-size:0.72rem;letter-spacing:0.15em;cursor:pointer;transition:all .3s;touch-action:manipulation;}
+.clear-btn:hover{border-color:rgba(64,128,224,0.4);color:var(--text);}
+
+/* 履歴 */
+.history-wrap{border:1px solid rgba(64,128,224,0.12);background:rgba(12,18,40,0.6);margin-bottom:20px;}
+.history-header{padding:10px 16px;border-bottom:1px solid rgba(64,128,224,0.08);font-size:0.62rem;letter-spacing:0.18em;color:var(--text-dim);}
+.history-list{max-height:280px;overflow-y:auto;}
+.history-item{padding:12px 16px;border-bottom:1px solid rgba(64,128,224,0.05);}
+.history-item:last-child{border-bottom:none;}
+.history-orig{font-size:0.78rem;color:var(--text);margin-bottom:3px;}
+.history-trans{font-size:0.75rem;color:var(--cyan-bright);}
+.history-meta{font-size:0.58rem;color:var(--text-dim);margin-top:3px;}
+.empty-msg{text-align:center;padding:24px;font-size:0.72rem;color:var(--text-dim);}
+
+/* エラー */
+.error-msg{display:none;padding:10px 14px;border:1px solid rgba(255,80,80,0.3);color:#ff8080;font-size:0.72rem;line-height:1.8;margin-bottom:12px;}
+.error-msg.show{display:block;}
+
+/* 非対応メッセージ */
+.unsupported{display:none;text-align:center;padding:32px;border:1px solid rgba(64,128,224,0.15);background:rgba(12,18,40,0.7);margin-bottom:20px;}
+.unsupported.show{display:block;}
+
+footer{text-align:center;padding:24px 0 60px;font-size:0.58rem;letter-spacing:0.15em;color:var(--text-dim);}
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="wrap">
+  <header>
+    <div class="sigil">
+      <svg viewBox="0 0 76 76" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="38" cy="38" r="35" stroke="#4080e0" stroke-width="0.6" opacity="0.5"/>
+        <circle cx="38" cy="38" r="25" stroke="#4080e0" stroke-width="0.3" opacity="0.3"/>
+        <!-- 吹き出し左（日本語） -->
+        <rect x="10" y="22" width="26" height="18" rx="3" fill="rgba(64,128,224,0.1)" stroke="#4080e0" stroke-width="0.8"/>
+        <path d="M14 40 L12 46 L20 40" fill="rgba(64,128,224,0.1)" stroke="#4080e0" stroke-width="0.6"/>
+        <text x="16" y="34" font-size="7" fill="#4080e0" opacity="0.8" font-family="serif">日</text>
+        <!-- 吹き出し右（英語） -->
+        <rect x="40" y="22" width="26" height="18" rx="3" fill="rgba(32,192,208,0.1)" stroke="#20c0d0" stroke-width="0.8"/>
+        <path d="M62 40 L64 46 L56 40" fill="rgba(32,192,208,0.1)" stroke="#20c0d0" stroke-width="0.6"/>
+        <text x="46" y="34" font-size="7" fill="#20c0d0" opacity="0.8" font-family="serif">EN</text>
+        <!-- 矢印 -->
+        <path d="M36 28 L40 28" stroke="#c9a84c" stroke-width="1" marker-end="url(#arr)"/>
+        <path d="M40 36 L36 36" stroke="#c9a84c" stroke-width="1"/>
+        <!-- 光線 -->
+        <line x1="38" y1="2" x2="38" y2="10" stroke="#4080e0" stroke-width="0.5" opacity="0.4"/>
+        <line x1="38" y1="66" x2="38" y2="74" stroke="#4080e0" stroke-width="0.5" opacity="0.4"/>
+        <line x1="2" y1="38" x2="10" y2="38" stroke="#4080e0" stroke-width="0.5" opacity="0.4"/>
+        <line x1="66" y1="38" x2="74" y2="38" stroke="#4080e0" stroke-width="0.5" opacity="0.4"/>
+      </svg>
+    </div>
+    <h1>Interpret Layer</h1>
+    <p class="subtitle">日英 同時通訳・翻訳</p>
+  </header>
+
+  <!-- APIキー -->
+  <div class="form-box">
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+    <div class="field">
+      <label>⚡ Groq APIキー（翻訳に使用）</label>
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <textarea id="apiKey" rows="2" placeholder="gsk_..." style="-webkit-text-security:disc;text-security:disc"></textarea>
+        <button onclick="toggleKey()" id="toggleBtn" style="padding:10px 12px;background:transparent;border:1px solid rgba(64,128,224,0.2);color:var(--text-dim);font-size:0.72rem;cursor:pointer;white-space:nowrap">表示</button>
+      </div>
+      <p style="font-size:0.6rem;color:var(--text-dim);margin-top:5px;line-height:1.8">音声認識はブラウザ標準機能（無料）。翻訳はGroq AIを使用。</p>
+    </div>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- 非対応ブラウザ -->
+  <div class="unsupported" id="unsupportedMsg">
+    <p style="font-size:0.85rem;margin-bottom:8px">⚠️ このブラウザは音声認識に対応していません</p>
+    <p style="font-size:0.72rem;color:var(--text-dim)">Chrome / Edge をご利用ください</p>
+  </div>
+
+  <!-- 言語選択 -->
+  <div class="lang-select-wrap" style="margin-bottom:14px">
+    <select class="lang-select" id="srcLang">
+      <option value="ja-JP">🇯🇵 日本語</option>
+      <option value="en-US">🇺🇸 English</option>
+    </select>
+    <div class="lang-arrow">⇄</div>
+    <select class="lang-select" id="tgtLang">
+      <option value="en">🇺🇸 English</option>
+      <option value="ja">🇯🇵 日本語</option>
+    </select>
+  </div>
+
+  <!-- コントロール -->
+  <div class="controls">
+    <button class="mic-btn" id="micBtn" onclick="toggleMic()">
+      <span class="mic-icon">🎙</span>
+      <span id="micLabel">録音開始</span>
+    </button>
+    <div class="mic-status" id="micStatus">マイクボタンを押して話してください</div>
+    <div class="mic-status" id="speakIndicator" style="color:var(--cyan-bright)"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button class="clear-btn" onclick="clearAll()">クリア</button>
+      <button class="clear-btn" onclick="toggleSpeech()" style="border-color:rgba(32,192,208,0.2);color:var(--cyan-bright)">🔇 読み上げ停止</button>
+    </div>
+  </div>
+
+  <!-- 通訳パネル -->
+  <div class="interp-wrap">
+    <div class="interp-panel">
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <div class="panel-header">
+        <span class="panel-lang" id="srcLangLabel">🇯🇵 日本語（入力）</span>
+      </div>
+      <div class="panel-body">
+        <div class="speech-text" id="speechText">話した内容がここに表示されます</div>
+        <div class="translating-indicator" id="translatingIndicator">翻訳中…</div>
+      </div>
+    </div>
+    <div class="interp-panel">
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <div class="panel-header">
+        <span class="panel-lang" id="tgtLangLabel">🇺🇸 English（翻訳）</span>
+      </div>
+      <div class="panel-body">
+        <div class="translation-text" id="translationText">翻訳結果がここに表示されます</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 履歴 -->
+  <div class="history-wrap">
+    <div class="history-header">通訳履歴</div>
+    <div class="history-list" id="historyList">
+      <div class="empty-msg">通訳履歴はありません</div>
+    </div>
+  </div>
+
+  <footer><p>Interpret Layer — 日英同時通訳・翻訳</p></footer>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// 状態管理
+// ══════════════════════════════════════════
+let recognition = null;
+let isRecording = false;
+let translateTimer = null;
+let history = [];
+let lastTranslated = '';
+
+function storageSave(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function storageLoad(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+
+function toggleKey(){
+  const el=document.getElementById('apiKey');
+  const btn=document.getElementById('toggleBtn');
+  const h=el.style.webkitTextSecurity!=='none';
+  el.style.webkitTextSecurity=h?'none':'disc';
+  el.style.textSecurity=h?'none':'disc';
+  btn.textContent=h?'隠す':'表示';
+}
+
+// ══════════════════════════════════════════
+// 言語選択
+// ══════════════════════════════════════════
+function updateLangLabels(){
+  const src=document.getElementById('srcLang').value;
+  const tgt=document.getElementById('tgtLang').value;
+  const srcLabel=src.startsWith('ja')?'🇯🇵 日本語（入力）':'🇺🇸 English (Input)';
+  const tgtLabel=tgt==='ja'?'🇯🇵 日本語（翻訳）':'🇺🇸 English (Translation)';
+  document.getElementById('srcLangLabel').textContent=srcLabel;
+  document.getElementById('tgtLangLabel').textContent=tgtLabel;
+}
+
+document.getElementById('srcLang').addEventListener('change',()=>{
+  const src=document.getElementById('srcLang').value;
+  const tgt=document.getElementById('tgtLang');
+  tgt.value=src.startsWith('ja')?'en':'ja';
+  updateLangLabels();
+  if(isRecording){stopMic();startMic();}
+});
+document.getElementById('tgtLang').addEventListener('change',updateLangLabels);
+
+// ══════════════════════════════════════════
+// 音声認識
+// ══════════════════════════════════════════
+function initRecognition(){
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SpeechRecognition){
+    document.getElementById('unsupportedMsg').className='unsupported show';
+    document.getElementById('micBtn').disabled=true;
+    return false;
+  }
+
+  recognition=new SpeechRecognition();
+  recognition.continuous=true;
+  recognition.interimResults=true;
+  recognition.lang=document.getElementById('srcLang').value;
+
+  recognition.onstart=()=>{
+    document.getElementById('micStatus').textContent='🔴 録音中… 話してください';
+  };
+
+  recognition.onresult=(e)=>{
+    let interim='', final='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const t=e.results[i][0].transcript;
+      if(e.results[i].isFinal) final+=t;
+      else interim+=t;
+    }
+
+    const speechEl=document.getElementById('speechText');
+    if(final){
+      speechEl.textContent=final;
+      speechEl.className='speech-text';
+      // 翻訳をデバウンス
+      clearTimeout(translateTimer);
+      translateTimer=setTimeout(()=>translate(final),600);
+    } else if(interim){
+      speechEl.textContent=interim;
+      speechEl.className='speech-text interim';
+    }
+  };
+
+  recognition.onerror=(e)=>{
+    if(e.error==='no-speech') return;
+    showError('音声認識エラー: '+e.error);
+    stopMic();
+  };
+
+  recognition.onend=()=>{
+    if(isRecording) recognition.start(); // 連続認識
+  };
+
+  return true;
+}
+
+function toggleMic(){
+  if(isRecording) stopMic();
+  else startMic();
+}
+
+function startMic(){
+  const apiKey=document.getElementById('apiKey').value.trim();
+  if(!apiKey){showError('Groq APIキーを入力してください');return;}
+  storageSave('interpretlayer_key',apiKey);
+
+  if(!recognition && !initRecognition()) return;
+  recognition.lang=document.getElementById('srcLang').value;
+
+  try{
+    recognition.start();
+    isRecording=true;
+    document.getElementById('micBtn').className='mic-btn recording';
+    document.getElementById('micLabel').textContent='録音停止';
+    document.getElementById('speechText').textContent='';
+    document.getElementById('translationText').textContent='';
+  }catch(e){
+    showError('マイクの開始に失敗しました: '+e.message);
+  }
+}
+
+function stopMic(){
+  isRecording=false;
+  if(recognition) try{recognition.stop();}catch(e){}
+  document.getElementById('micBtn').className='mic-btn';
+  document.getElementById('micLabel').textContent='録音開始';
+  document.getElementById('micStatus').textContent='マイクボタンを押して話してください';
+}
+
+// ══════════════════════════════════════════
+// 翻訳
+// ══════════════════════════════════════════
+async function translate(text){
+  if(!text||text===lastTranslated) return;
+  lastTranslated=text;
+
+  const apiKey=storageLoad('interpretlayer_key')||document.getElementById('apiKey').value.trim();
+  if(!apiKey) return;
+
+  const srcLang=document.getElementById('srcLang').value;
+  const tgtLang=document.getElementById('tgtLang').value;
+  const tgtName=tgtLang==='ja'?'日本語':'English';
+  const srcName=srcLang.startsWith('ja')?'日本語':'English';
+
+  document.getElementById('translatingIndicator').className='translating-indicator show';
+  document.getElementById('translationText').textContent='';
+
+  const prompt=`以下の${srcName}テキストを${tgtName}に翻訳してください。
+翻訳文のみを返してください。説明や前置きは不要です。
+
+原文: ${text}`;
+
+  try{
+    const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+      body:JSON.stringify({
+        model:'llama-3.3-70b-versatile',
+        max_tokens:400, temperature:0.3,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    const data=await res.json();
+    const translated=data.choices?.[0]?.message?.content?.trim()||'翻訳失敗';
+
+    document.getElementById('translationText').textContent=translated;
+    document.getElementById('translatingIndicator').className='translating-indicator';
+
+    // 翻訳結果を読み上げ
+    speakText(translated, tgtLang);
+
+    // 履歴追加
+    addHistory(text,translated,srcName,tgtName);
+
+  }catch(e){
+    document.getElementById('translatingIndicator').className='translating-indicator';
+    document.getElementById('translationText').textContent='翻訳エラー: '+e.message;
+  }
+}
+
+// ══════════════════════════════════════════
+// 読み上げ（TTS）
+// ══════════════════════════════════════════
+let isSpeaking=false;
+
+function speakText(text, lang){
+  if(!window.speechSynthesis||!text) return;
+  // 読み上げ中なら止める
+  window.speechSynthesis.cancel();
+
+  const utter=new SpeechSynthesisUtterance(text);
+  utter.lang=lang==='ja'?'ja-JP':'en-US';
+  utter.rate=0.95;
+  utter.pitch=1.0;
+  utter.volume=1.0;
+
+  utter.onstart=()=>{
+    isSpeaking=true;
+    document.getElementById('speakIndicator').textContent='🔊 読み上げ中…';
+  };
+  utter.onend=()=>{
+    isSpeaking=false;
+    document.getElementById('speakIndicator').textContent='';
+  };
+  utter.onerror=()=>{
+    isSpeaking=false;
+    document.getElementById('speakIndicator').textContent='';
+  };
+
+  window.speechSynthesis.speak(utter);
+}
+
+function toggleSpeech(){
+  if(isSpeaking){
+    window.speechSynthesis.cancel();
+    isSpeaking=false;
+    document.getElementById('speakIndicator').textContent='';
+  }
+}
+
+
+function addHistory(orig,trans,srcName,tgtName){
+  const now=new Date();
+  const time=`${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+  history.unshift({orig,trans,srcName,tgtName,time});
+  if(history.length>30) history.pop();
+  renderHistory();
+}
+
+function renderHistory(){
+  const el=document.getElementById('historyList');
+  if(!history.length){
+    el.innerHTML='<div class="empty-msg">通訳履歴はありません</div>';
+    return;
+  }
+  el.innerHTML=history.map(h=>`
+    <div class="history-item">
+      <div class="history-orig">${h.orig}</div>
+      <div class="history-trans">${h.trans}</div>
+      <div class="history-meta">${h.srcName} → ${h.tgtName} · ${h.time}</div>
+    </div>`).join('');
+}
+
+function clearAll(){
+  history=[];
+  lastTranslated='';
+  document.getElementById('speechText').textContent='話した内容がここに表示されます';
+  document.getElementById('translationText').textContent='翻訳結果がここに表示されます';
+  document.getElementById('speechText').className='speech-text';
+  renderHistory();
+}
+
+function showError(msg){
+  const el=document.getElementById('errorMsg');
+  el.textContent=msg; el.className='error-msg show';
+  setTimeout(()=>el.className='error-msg',4000);
+}
+
+// ══════════════════════════════════════════
+// Background Canvas（波紋）
+// ══════════════════════════════════════════
+(function(){
+  const canvas=document.getElementById('bgCanvas');
+  const ctx=canvas.getContext('2d');
+  function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+  resize(); window.addEventListener('resize',resize);
+
+  let stars=[];
+  function initStars(){
+    stars=[];
+    for(let i=0;i<200;i++){
+      const r=Math.random();
+      stars.push({
+        x:Math.random()*canvas.width, y:Math.random()*canvas.height,
+        radius:r<0.6?Math.random()*0.5+0.1:r<0.9?Math.random()*0.9+0.5:Math.random()*1.3+0.9,
+        baseAlpha:Math.random()*0.3+0.08,
+        twinkleSpeed:Math.random()*0.02+0.005, twinkleOffset:Math.random()*Math.PI*2,
+        color:r<0.3?'#80b0ff':r<0.5?'#60e8f8':'#ffffff',
+      });
+    }
+  }
+  initStars(); window.addEventListener('resize',initStars);
+
+  // 波紋
+  let ripples=[];
+  function spawnRipple(){
+    ripples.push({
+      x:Math.random()*canvas.width,
+      y:Math.random()*canvas.height,
+      r:0, maxR:Math.random()*80+40,
+      alpha:0.3, speed:Math.random()*0.8+0.4,
+      color:Math.random()<0.5?'64,128,224':'32,192,208',
+    });
+    setTimeout(spawnRipple, Math.random()*2000+800);
+  }
+  spawnRipple();
+
+  let frame=0;
+  function draw(){
+    ctx.fillStyle='rgba(8,12,24,0.2)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    if(frame===0){ctx.fillStyle='#080c18';ctx.fillRect(0,0,canvas.width,canvas.height);}
+
+    stars.forEach(s=>{
+      const a=s.baseAlpha*(0.5+0.5*Math.sin(frame*s.twinkleSpeed+s.twinkleOffset));
+      ctx.globalAlpha=a; ctx.fillStyle=s.color;
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.radius,0,Math.PI*2); ctx.fill();
+    });
+
+    ripples=ripples.filter(r=>r.alpha>0.01);
+    ripples.forEach(r=>{
+      r.r+=r.speed; r.alpha*=0.97;
+      ctx.globalAlpha=r.alpha*(1-r.r/r.maxR);
+      ctx.strokeStyle=`rgba(${r.color},1)`;
+      ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(r.x,r.y,r.r,0,Math.PI*2); ctx.stroke();
+    });
+
+    ctx.globalAlpha=1;
+    frame++; requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// 初期化
+window.addEventListener('DOMContentLoaded',()=>{
+  const k=storageLoad('interpretlayer_key');
+  if(k){document.getElementById('apiKey').value=k;}
+  updateLangLabels();
+  if(!window.SpeechRecognition&&!window.webkitSpeechRecognition){
+    document.getElementById('unsupportedMsg').className='unsupported show';
+    document.getElementById('micBtn').disabled=true;
+  }
+});
+</script>
+</body>
+</html>

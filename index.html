@@ -253,9 +253,9 @@ footer{text-align:center;padding:24px 0 60px;font-size:0.58rem;letter-spacing:0.
     <!-- 声の性別選択 -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <button class="clear-btn" id="btnMale" onclick="setVoiceGender('male')"
-        style="border-color:rgba(64,128,224,0.4);color:var(--blue-bright)">👨 男性声</button>
+        style="border-color:rgba(64,128,224,0.4);color:var(--blue-bright)">👨 男性</button>
       <button class="clear-btn" id="btnFemale" onclick="setVoiceGender('female')"
-        style="border-color:rgba(64,128,224,0.15);color:var(--text-dim)">👩 女性声</button>
+        style="border-color:rgba(64,128,224,0.15);color:var(--text-dim)">👩 女性</button>
     </div>
     <div class="mic-status" id="voiceLabel" style="color:var(--text-dim)"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -649,10 +649,19 @@ async function translate(text){
 // ══════════════════════════════════════════
 // 声の性別選択
 // ══════════════════════════════════════════
-let selectedGender = 'auto'; // 'male' | 'female' | 'auto'
+let selectedGender = 'female';
+let availableVoices = [];
+
+// 音声リストをキャッシュして使う
+function loadVoices(){
+  availableVoices = window.speechSynthesis.getVoices();
+}
+window.speechSynthesis.onvoiceschanged = loadVoices;
+loadVoices();
 
 function setVoiceGender(gender){
   selectedGender = gender;
+  storageSave('interpretlayer_gender', gender);
   const btnMale   = document.getElementById('btnMale');
   const btnFemale = document.getElementById('btnFemale');
   const label     = document.getElementById('voiceLabel');
@@ -671,28 +680,24 @@ function setVoiceGender(gender){
 }
 
 function getVoiceForLang(lang, gender){
-  const voices = window.speechSynthesis.getVoices();
+  // キャッシュが空なら再取得
+  if(availableVoices.length === 0) loadVoices();
   const langBase = lang.split('-')[0].toLowerCase();
 
-  // 対象言語の音声だけ絞り込む
-  const matched = voices.filter(v =>
+  const matched = availableVoices.filter(v =>
     v.lang.toLowerCase().startsWith(langBase)
   );
   if(matched.length === 0) return null;
-
   if(gender === 'auto') return matched[0];
 
-  // 名前に男性・女性のキーワードが含まれているか判定
-  const maleKeywords   = ['male','man','david','jorge','alex','daniel','ryu','otoya','ichiro','kyoko','hikari'];
-  const femaleKeywords = ['female','woman','zira','paulina','alice','karen','kyoko','haruka','mizuki','ayumi','hikari'];
+  const maleKeywords   = ['male','man','david','jorge','alex','daniel','ryu','otoya','ichiro'];
+  const femaleKeywords = ['female','woman','zira','paulina','alice','karen','haruka','mizuki','ayumi'];
   const keywords = gender === 'male' ? maleKeywords : femaleKeywords;
   const opposite = gender === 'male' ? femaleKeywords : maleKeywords;
 
-  // キーワードで絞り込み
   const preferred = matched.filter(v =>
     keywords.some(k => v.name.toLowerCase().includes(k))
   );
-  // 反対キーワードを除外
   const filtered = matched.filter(v =>
     !opposite.some(k => v.name.toLowerCase().includes(k))
   );
@@ -826,13 +831,6 @@ function clearAll(){
 
   switchProvider(savedProvider);
   updateLangLabels();
-
-  // 音声リストを読み込む
-  const loadVoices = () => {
-    availableVoices = window.speechSynthesis.getVoices();
-  };
-  loadVoices();
-  window.speechSynthesis.onvoiceschanged = loadVoices;
 
   // 保存済み性別を復元
   const savedGender = storageLoad('interpretlayer_gender') || 'female';

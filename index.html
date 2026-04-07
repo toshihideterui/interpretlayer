@@ -257,7 +257,7 @@ footer{text-align:center;padding:24px 0 60px;font-size:0.58rem;letter-spacing:0.
       <button class="clear-btn" id="btnFemale" onclick="setVoiceGender('female')"
         style="border-color:rgba(64,128,224,0.15);color:var(--text-dim)">👩 女性声</button>
     </div>
-    <div class="mic-status" id="voiceLabel" style="color:var(--text-dim)">声: 自動選択</div>
+    <div class="mic-status" id="voiceLabel" style="color:var(--text-dim)"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <button class="clear-btn" onclick="clearAll()">クリア</button>
       <button class="clear-btn" onclick="toggleSpeech()" style="border-color:rgba(32,192,208,0.2);color:var(--cyan-bright)">🔇 読み上げ停止</button>
@@ -311,6 +311,8 @@ let historyItems = [];
 let lastTranslated = '';
 let currentProvider = 'groq'; // 'groq' or 'gemini'
 let speechEnabled = true;
+let selectedGender = 'female';
+let availableVoices = [];
 
 function storageSave(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 function storageLoad(k){try{return localStorage.getItem(k);}catch(e){return null;}}
@@ -359,6 +361,54 @@ function showError(msg){
   el.textContent = msg;
   el.className = 'error-msg show';
   setTimeout(()=>{ el.className='error-msg'; }, 5000);
+}
+
+// ══════════════════════════════════════════
+// 声の性別選択
+// ══════════════════════════════════════════
+function setVoiceGender(gender){
+  selectedGender = gender;
+  storageSave('interpretlayer_gender', gender);
+  const btnMale   = document.getElementById('btnMale');
+  const btnFemale = document.getElementById('btnFemale');
+  if(gender === 'male'){
+    btnMale.style.borderColor   = 'rgba(64,128,224,0.8)';
+    btnMale.style.color         = 'var(--blue-bright)';
+    btnFemale.style.borderColor = 'rgba(64,128,224,0.15)';
+    btnFemale.style.color       = 'var(--text-dim)';
+    document.getElementById('voiceLabel').textContent = '声: 👨 男性';
+  } else {
+    btnFemale.style.borderColor = 'rgba(32,192,208,0.8)';
+    btnFemale.style.color       = 'var(--cyan-bright)';
+    btnMale.style.borderColor   = 'rgba(64,128,224,0.15)';
+    btnMale.style.color         = 'var(--text-dim)';
+    document.getElementById('voiceLabel').textContent = '声: 👩 女性';
+  }
+}
+
+function getVoiceForLang(lang, gender){
+  if(!availableVoices.length) return null;
+  const langBase = lang.split('-')[0].toLowerCase();
+
+  // 対象言語の音声を絞り込む
+  const matched = availableVoices.filter(v =>
+    v.lang.toLowerCase().startsWith(langBase)
+  );
+  if(!matched.length) return null;
+
+  // 名前に性別キーワードが含まれるものを優先
+  const maleKeywords   = ['male','man','男','david','jorge','ivan','pierre','henrik','felix'];
+  const femaleKeywords = ['female','woman','女','zira','kyoko','sinji','amelie','anna','alice','sara','nora','lekha'];
+  const keywords = gender === 'male' ? maleKeywords : femaleKeywords;
+
+  const hit = matched.find(v =>
+    keywords.some(k => v.name.toLowerCase().includes(k))
+  );
+  // キーワードで見つからない場合、奇数/偶数インデックスで男女を推定
+  if(hit) return hit;
+  return gender === 'male'
+    ? matched[0]
+    : matched[matched.length > 1 ? 1 : 0];
 }
 
 // ══════════════════════════════════════════
@@ -612,13 +662,11 @@ function setVoiceGender(gender){
     btnMale.style.color         = 'var(--blue-bright)';
     btnFemale.style.borderColor = 'rgba(64,128,224,0.15)';
     btnFemale.style.color       = 'var(--text-dim)';
-    label.textContent = '声: 👨 男性声を優先';
   } else {
     btnFemale.style.borderColor = 'rgba(32,192,208,0.8)';
     btnFemale.style.color       = 'var(--cyan-bright)';
     btnMale.style.borderColor   = 'rgba(64,128,224,0.15)';
     btnMale.style.color         = 'var(--text-dim)';
-    label.textContent = '声: 👩 女性声を優先';
   }
 }
 
@@ -778,6 +826,17 @@ function clearAll(){
 
   switchProvider(savedProvider);
   updateLangLabels();
+
+  // 音声リストを読み込む
+  const loadVoices = () => {
+    availableVoices = window.speechSynthesis.getVoices();
+  };
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+
+  // 保存済み性別を復元
+  const savedGender = storageLoad('interpretlayer_gender') || 'female';
+  setVoiceGender(savedGender);
 })();
 </script>
 </body>

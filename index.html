@@ -304,13 +304,13 @@ footer{text-align:center;padding:24px 0 60px;font-size:0.58rem;letter-spacing:0.
 // ══════════════════════════════════════════
 // 状態管理
 // ══════════════════════════════════════════
-let recognition = null;
-let isRecording = false;
+let recognition    = null;
+let isRecording    = false;
 let translateTimer = null;
-let historyItems = [];
+let historyItems   = [];
 let lastTranslated = '';
-let currentProvider = 'groq'; // 'groq' or 'gemini'
-let speechEnabled = true;
+let currentProvider = 'groq';
+let speechEnabled  = true;
 let selectedGender = 'female';
 let availableVoices = [];
 
@@ -323,36 +323,34 @@ function storageLoad(k){try{return localStorage.getItem(k);}catch(e){return null
 function switchProvider(p){
   currentProvider = p;
   storageSave('interpretlayer_provider', p);
-
-  const btnGroq = document.getElementById('btnGroq');
+  const btnGroq   = document.getElementById('btnGroq');
   const btnGemini = document.getElementById('btnGemini');
-  const groqWrap = document.getElementById('groqKeyWrap');
-  const geminiWrap = document.getElementById('geminiKeyWrap');
-  const badge = document.getElementById('providerBadge');
-
+  const groqWrap  = document.getElementById('groqKeyWrap');
+  const geminiWrap= document.getElementById('geminiKeyWrap');
+  const badge     = document.getElementById('providerBadge');
   if(p === 'groq'){
-    btnGroq.className = 'provider-btn active-groq';
-    btnGemini.className = 'provider-btn';
-    groqWrap.style.display = '';
-    geminiWrap.style.display = 'none';
-    badge.className = 'provider-badge badge-groq';
-    badge.textContent = 'Groq — llama-3.3-70b-versatile';
+    btnGroq.className  = 'provider-btn active-groq';
+    btnGemini.className= 'provider-btn';
+    groqWrap.style.display  = '';
+    geminiWrap.style.display= 'none';
+    badge.className    = 'provider-badge badge-groq';
+    badge.textContent  = 'Groq — llama-3.3-70b-versatile';
   } else {
-    btnGroq.className = 'provider-btn';
-    btnGemini.className = 'provider-btn active-gemini';
-    groqWrap.style.display = 'none';
-    geminiWrap.style.display = '';
-    badge.className = 'provider-badge badge-gemini';
-    badge.textContent = 'Gemma — gemma-3-27b-it';
+    btnGroq.className  = 'provider-btn';
+    btnGemini.className= 'provider-btn active-gemini';
+    groqWrap.style.display  = 'none';
+    geminiWrap.style.display= '';
+    badge.className    = 'provider-badge badge-gemini';
+    badge.textContent  = 'Gemma — gemma-3-27b-it';
   }
 }
 
 function toggleKey(fieldId, btnId){
-  const el = document.getElementById(fieldId);
+  const el  = document.getElementById(fieldId);
   const btn = document.getElementById(btnId);
   const hidden = el.style.webkitTextSecurity !== 'none';
   el.style.webkitTextSecurity = hidden ? 'none' : 'disc';
-  el.style.textSecurity = hidden ? 'none' : 'disc';
+  el.style.textSecurity       = hidden ? 'none' : 'disc';
   btn.textContent = hidden ? '隠す' : '表示';
 }
 
@@ -376,39 +374,28 @@ function setVoiceGender(gender){
     btnMale.style.color         = 'var(--blue-bright)';
     btnFemale.style.borderColor = 'rgba(64,128,224,0.15)';
     btnFemale.style.color       = 'var(--text-dim)';
-    document.getElementById('voiceLabel').textContent = '声: 👨 男性';
   } else {
     btnFemale.style.borderColor = 'rgba(32,192,208,0.8)';
     btnFemale.style.color       = 'var(--cyan-bright)';
     btnMale.style.borderColor   = 'rgba(64,128,224,0.15)';
     btnMale.style.color         = 'var(--text-dim)';
-    document.getElementById('voiceLabel').textContent = '声: 👩 女性';
   }
 }
 
 function getVoiceForLang(lang, gender){
-  if(!availableVoices.length) return null;
   const langBase = lang.split('-')[0].toLowerCase();
-
-  // 対象言語の音声を絞り込む
-  const matched = availableVoices.filter(v =>
+  const matched  = availableVoices.filter(v =>
     v.lang.toLowerCase().startsWith(langBase)
   );
   if(!matched.length) return null;
 
-  // 名前に性別キーワードが含まれるものを優先
-  const maleKeywords   = ['male','man','男','david','jorge','ivan','pierre','henrik','felix'];
-  const femaleKeywords = ['female','woman','女','zira','kyoko','sinji','amelie','anna','alice','sara','nora','lekha'];
-  const keywords = gender === 'male' ? maleKeywords : femaleKeywords;
-
-  const hit = matched.find(v =>
-    keywords.some(k => v.name.toLowerCase().includes(k))
-  );
-  // キーワードで見つからない場合、奇数/偶数インデックスで男女を推定
+  const maleKw   = ['male','man','david','jorge','alex','daniel','otoya','ichiro'];
+  const femaleKw = ['female','woman','zira','paulina','alice','karen','haruka','mizuki','ayumi','kyoko'];
+  const kw = gender === 'male' ? maleKw : femaleKw;
+  const hit = matched.find(v => kw.some(k => v.name.toLowerCase().includes(k)));
   if(hit) return hit;
-  return gender === 'male'
-    ? matched[0]
-    : matched[matched.length > 1 ? 1 : 0];
+  // キーワードで見つからない場合インデックスで推定
+  return gender === 'male' ? matched[0] : matched[matched.length > 1 ? 1 : 0];
 }
 
 // ══════════════════════════════════════════
@@ -426,7 +413,6 @@ const LANG_NAMES = {
   'ru':'🇷🇺 Русский','vi':'🇻🇳 Tiếng Việt','th':'🇹🇭 ภาษาไทย',
   'fil':'🇵🇭 Filipino','ms':'🇲🇾 Bahasa Melayu','id':'🇮🇩 Bahasa Indonesia',
 };
-
 const LANG_FULL = {
   'ja':'日本語','en':'English','zh':'中文（简体）','ko':'한국어',
   'fr':'Français','es':'Español','de':'Deutsch','it':'Italiano',
@@ -442,8 +428,8 @@ function updateLangLabels(){
 }
 
 document.getElementById('srcLang').addEventListener('change',()=>{
-  const src = document.getElementById('srcLang').value;
-  const tgt = document.getElementById('tgtLang');
+  const src     = document.getElementById('srcLang').value;
+  const tgt     = document.getElementById('tgtLang');
   const srcBase = src.split('-')[0];
   if(tgt.value === srcBase){ tgt.value = srcBase==='en'?'ja':'en'; }
   updateLangLabels();
@@ -462,89 +448,68 @@ function initRecognition(){
     return false;
   }
   recognition = new SR();
-  recognition.continuous = true;
+  recognition.continuous     = true;
   recognition.interimResults = true;
   recognition.lang = document.getElementById('srcLang').value;
 
   recognition.onstart = () => {
     document.getElementById('micStatus').textContent = '🔴 録音中… 話してください';
   };
-
   recognition.onresult = (e) => {
     let interim='', final='';
     for(let i=e.resultIndex; i<e.results.length; i++){
       const t = e.results[i][0].transcript;
-      if(e.results[i].isFinal) final+=t;
-      else interim+=t;
+      if(e.results[i].isFinal) final+=t; else interim+=t;
     }
-    const speechEl = document.getElementById('speechText');
+    const el = document.getElementById('speechText');
     if(final){
-      speechEl.textContent = final;
-      speechEl.className = 'speech-text';
+      el.textContent = final; el.className = 'speech-text';
       clearTimeout(translateTimer);
       translateTimer = setTimeout(()=>translate(final), 600);
     } else if(interim){
-      speechEl.textContent = interim;
-      speechEl.className = 'speech-text interim';
+      el.textContent = interim; el.className = 'speech-text interim';
     }
   };
-
   recognition.onerror = (e) => {
     if(e.error==='no-speech') return;
-    showError('音声認識エラー: '+e.error);
-    stopMic();
+    showError('音声認識エラー: '+e.error); stopMic();
   };
-
-  recognition.onend = () => {
-    if(isRecording) recognition.start();
-  };
-
+  recognition.onend = () => { if(isRecording) recognition.start(); };
   return true;
 }
 
-function toggleMic(){
-  if(isRecording) stopMic();
-  else startMic();
-}
+function toggleMic(){ if(isRecording) stopMic(); else startMic(); }
 
 function startMic(){
-  // APIキー確認
   const key = currentProvider==='groq'
     ? document.getElementById('groqKey').value.trim()
     : document.getElementById('geminiKey').value.trim();
   if(!key){
-    showError(currentProvider==='groq'
-      ? 'Groq APIキーを入力してください'
-      : 'Gemini APIキーを入力してください');
+    showError(currentProvider==='groq'?'Groq APIキーを入力してください':'Gemma APIキーを入力してください');
     return;
   }
   storageSave('interpretlayer_key_'+currentProvider, key);
-
   if(!recognition && !initRecognition()) return;
   recognition.lang = document.getElementById('srcLang').value;
-
   try{
-    recognition.start();
-    isRecording = true;
-    document.getElementById('micBtn').className = 'mic-btn recording';
+    recognition.start(); isRecording = true;
+    document.getElementById('micBtn').className  = 'mic-btn recording';
     document.getElementById('micLabel').textContent = '録音停止';
-    document.getElementById('speechText').textContent = '';
-    document.getElementById('translationText').textContent = '';
-  }catch(e){
-    showError('マイクの開始に失敗しました: '+e.message);
-  }
+    document.getElementById('speechText').textContent     = '';
+    document.getElementById('translationText').textContent= '';
+  }catch(e){ showError('マイクの開始に失敗しました: '+e.message); }
 }
 
 function stopMic(){
   isRecording = false;
   if(recognition) try{ recognition.stop(); }catch(e){}
-  document.getElementById('micBtn').className = 'mic-btn';
+  document.getElementById('micBtn').className     = 'mic-btn';
   document.getElementById('micLabel').textContent = '録音開始';
-  document.getElementById('micStatus').textContent = 'マイクボタンを押して話してください';
+  document.getElementById('micStatus').textContent= 'マイクボタンを押して話してください';
 }
 
 // ══════════════════════════════════════════
-// 翻訳（Groq / Gemini 切り替え）
+// 翻訳（トーン分析付き）
 // ══════════════════════════════════════════
 async function translate(text){
   if(!text || text===lastTranslated) return;
@@ -559,176 +524,88 @@ async function translate(text){
   document.getElementById('translatingIndicator').className = 'translating-indicator show';
   document.getElementById('translationText').textContent = '';
 
-  // トーン分析 + 翻訳を同時にAIに依頼
   const prompt = `以下の${srcName}テキストを${tgtName}に翻訳し、話し方のトーンも分析してください。
 必ず以下のJSON形式のみで返してください。説明や前置きは不要です。
 
-{
-  "translation": "翻訳文",
-  "rate": 数値(0.6〜1.6、ゆっくり=0.7、普通=1.0、早口=1.4),
-  "pitch": 数値(0.5〜2.0、低い=0.7、普通=1.0、高い=1.4),
-  "volume": 数値(0.5〜1.0、小さい=0.6、普通=0.9、大きい=1.0)
-}
+{"translation":"翻訳文","rate":数値(0.6〜1.6),"pitch":数値(0.5〜2.0),"volume":数値(0.5〜1.0)}
 
-トーン分析の基準：
-- 感嘆符が多い・短文→rate高め、pitch高め
-- 丁寧・長文→rate低め
-- 疑問文→pitch高め
-- 命令・断言→volume高め
+rate: ゆっくり=0.7 普通=1.0 早口=1.4
+pitch: 低い=0.7 普通=1.0 高い=1.4
+volume: 小さい=0.6 普通=0.9 大きい=1.0
 
 原文: ${text}`;
 
+  let translated  = '';
+  let toneParams  = { rate:1.0, pitch:1.0, volume:0.9 };
+
+  const parseResp = (raw) => {
+    try{
+      const clean = raw.replace(/```json|```/g,'').trim();
+      const obj   = JSON.parse(clean);
+      translated  = obj.translation || raw;
+      toneParams  = {
+        rate  : Math.min(1.6, Math.max(0.6, Number(obj.rate)   || 1.0)),
+        pitch : Math.min(2.0, Math.max(0.5, Number(obj.pitch)  || 1.0)),
+        volume: Math.min(1.0, Math.max(0.5, Number(obj.volume) || 0.9)),
+      };
+    }catch(e){ translated = raw.trim(); }
+  };
+
   try{
-    let translated = '';
-    let toneParams = { rate: 1.0, pitch: 1.0, volume: 0.9 };
-
-    const parseResponse = (raw) => {
-      try{
-        const json = raw.replace(/```json|```/g,'').trim();
-        const obj = JSON.parse(json);
-        translated = obj.translation || '翻訳失敗';
-        toneParams = {
-          rate: Math.min(1.6, Math.max(0.6, obj.rate || 1.0)),
-          pitch: Math.min(2.0, Math.max(0.5, obj.pitch || 1.0)),
-          volume: Math.min(1.0, Math.max(0.5, obj.volume || 0.9)),
-        };
-      }catch(e){
-        // JSONパース失敗時はそのままテキストとして使用
-        translated = raw.trim();
-      }
-    };
-
     if(currentProvider === 'groq'){
-      // ── Groq ──
       const apiKey = storageLoad('interpretlayer_key_groq') || document.getElementById('groqKey').value.trim();
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      const res  = await fetch('https://api.groq.com/openai/v1/chat/completions',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
-        body:JSON.stringify({
-          model:'llama-3.3-70b-versatile',
-          max_tokens:500, temperature:0.3,
-          messages:[{role:'user',content:prompt}]
-        })
+        body:JSON.stringify({ model:'llama-3.3-70b-versatile', max_tokens:500, temperature:0.3,
+          messages:[{role:'user',content:prompt}] })
       });
       const data = await res.json();
       if(data.error) throw new Error(data.error.message);
-      parseResponse(data.choices?.[0]?.message?.content || '翻訳失敗');
-
+      parseResp(data.choices?.[0]?.message?.content || '');
     } else {
-      // ── Gemma ──
       const apiKey = storageLoad('interpretlayer_key_gemini') || document.getElementById('geminiKey').value.trim();
-      const res = await fetch(
+      const res  = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${apiKey}`,
-        {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({
-            contents:[{parts:[{text:prompt}]}],
-            generationConfig:{maxOutputTokens:500, temperature:0.3}
-          })
-        }
+        { method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({ contents:[{parts:[{text:prompt}]}],
+            generationConfig:{maxOutputTokens:500, temperature:0.3} }) }
       );
       const data = await res.json();
       if(data.error) throw new Error(data.error.message);
-      parseResponse(data.candidates?.[0]?.content?.parts?.[0]?.text || '翻訳失敗');
+      parseResp(data.candidates?.[0]?.content?.parts?.[0]?.text || '');
     }
 
-    document.getElementById('translationText').textContent = translated;
-    document.getElementById('translatingIndicator').className = 'translating-indicator';
-
+    document.getElementById('translationText').textContent   = translated;
+    document.getElementById('translatingIndicator').className= 'translating-indicator';
     speakText(translated, tgtLang, toneParams);
     addHistory(text, translated, srcName, tgtName);
 
   }catch(e){
-    document.getElementById('translatingIndicator').className = 'translating-indicator';
-    document.getElementById('translationText').textContent = '翻訳エラー: '+e.message;
+    document.getElementById('translatingIndicator').className= 'translating-indicator';
+    document.getElementById('translationText').textContent   = '翻訳エラー: '+e.message;
     showError('翻訳エラー: '+e.message);
   }
 }
 
 // ══════════════════════════════════════════
-// 声の性別選択
-// ══════════════════════════════════════════
-let selectedGender = 'female';
-let availableVoices = [];
-
-// 音声リストをキャッシュして使う
-function loadVoices(){
-  availableVoices = window.speechSynthesis.getVoices();
-}
-window.speechSynthesis.onvoiceschanged = loadVoices;
-loadVoices();
-
-function setVoiceGender(gender){
-  selectedGender = gender;
-  storageSave('interpretlayer_gender', gender);
-  const btnMale   = document.getElementById('btnMale');
-  const btnFemale = document.getElementById('btnFemale');
-  const label     = document.getElementById('voiceLabel');
-
-  if(gender === 'male'){
-    btnMale.style.borderColor   = 'rgba(64,128,224,0.8)';
-    btnMale.style.color         = 'var(--blue-bright)';
-    btnFemale.style.borderColor = 'rgba(64,128,224,0.15)';
-    btnFemale.style.color       = 'var(--text-dim)';
-  } else {
-    btnFemale.style.borderColor = 'rgba(32,192,208,0.8)';
-    btnFemale.style.color       = 'var(--cyan-bright)';
-    btnMale.style.borderColor   = 'rgba(64,128,224,0.15)';
-    btnMale.style.color         = 'var(--text-dim)';
-  }
-}
-
-function getVoiceForLang(lang, gender){
-  // キャッシュが空なら再取得
-  if(availableVoices.length === 0) loadVoices();
-  const langBase = lang.split('-')[0].toLowerCase();
-
-  const matched = availableVoices.filter(v =>
-    v.lang.toLowerCase().startsWith(langBase)
-  );
-  if(matched.length === 0) return null;
-  if(gender === 'auto') return matched[0];
-
-  const maleKeywords   = ['male','man','david','jorge','alex','daniel','ryu','otoya','ichiro'];
-  const femaleKeywords = ['female','woman','zira','paulina','alice','karen','haruka','mizuki','ayumi'];
-  const keywords = gender === 'male' ? maleKeywords : femaleKeywords;
-  const opposite = gender === 'male' ? femaleKeywords : maleKeywords;
-
-  const preferred = matched.filter(v =>
-    keywords.some(k => v.name.toLowerCase().includes(k))
-  );
-  const filtered = matched.filter(v =>
-    !opposite.some(k => v.name.toLowerCase().includes(k))
-  );
-
-  return preferred[0] || filtered[0] || matched[0];
-}
-
-// ══════════════════════════════════════════
-// 読み上げ（トーン対応）
+// 読み上げ（トーン＋声の性別対応）
 // ══════════════════════════════════════════
 function speakText(text, lang, tone={}){
-  if(!speechEnabled) return;
-  if(!window.speechSynthesis) return;
+  if(!speechEnabled || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  const utt = new SpeechSynthesisUtterance(text);
-  utt.lang = lang.includes('-') ? lang : lang+'-'+lang.toUpperCase();
+  const utt  = new SpeechSynthesisUtterance(text);
+  utt.lang   = lang.includes('-') ? lang : lang+'-'+lang.toUpperCase();
   utt.rate   = tone.rate   ?? 1.0;
   utt.pitch  = tone.pitch  ?? 1.0;
   utt.volume = tone.volume ?? 0.9;
-
-  // 声の性別を適用
   const voice = getVoiceForLang(lang, selectedGender);
   if(voice) utt.voice = voice;
-
-  // トーン表示
-  const indicator = document.getElementById('speakIndicator');
-  const toneLabel = tone.rate
+  const ind  = document.getElementById('speakIndicator');
+  ind.textContent = tone.rate
     ? `🔊 読み上げ中… (速度:${tone.rate.toFixed(1)} ピッチ:${tone.pitch.toFixed(1)})`
     : '🔊 読み上げ中…';
-  indicator.textContent = toneLabel;
-  utt.onend = () => { indicator.textContent = ''; };
+  utt.onend = () => { ind.textContent = ''; };
   window.speechSynthesis.speak(utt);
 }
 
@@ -749,33 +626,29 @@ function toggleSpeech(){
 // ══════════════════════════════════════════
 function addHistory(orig, trans, srcName, tgtName){
   const now = new Date();
-  const timeStr = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
-  historyItems.unshift({orig, trans, srcName, tgtName, time:timeStr, provider:currentProvider});
+  const t   = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+  historyItems.unshift({orig, trans, srcName, tgtName, time:t, provider:currentProvider});
   if(historyItems.length > 50) historyItems.pop();
   renderHistory();
 }
 
 function renderHistory(){
   const list = document.getElementById('historyList');
-  if(historyItems.length===0){
-    list.innerHTML = '<div class="empty-msg">通訳履歴はありません</div>';
-    return;
+  if(!historyItems.length){
+    list.innerHTML = '<div class="empty-msg">通訳履歴はありません</div>'; return;
   }
   list.innerHTML = historyItems.map(h=>`
     <div class="history-item">
       <div class="history-orig">${h.orig}</div>
       <div class="history-trans">${h.trans}</div>
-      <div class="history-meta">${h.time} · ${h.srcName} → ${h.tgtName} · ${h.provider==='gemini'?'✨ Gemini':'⚡ Groq'}</div>
-    </div>
-  `).join('');
+      <div class="history-meta">${h.time} · ${h.srcName} → ${h.tgtName} · ${h.provider==='gemini'?'🌿 Gemma':'⚡ Groq'}</div>
+    </div>`).join('');
 }
 
 function clearAll(){
-  document.getElementById('speechText').textContent = '話した内容がここに表示されます';
+  document.getElementById('speechText').textContent      = '話した内容がここに表示されます';
   document.getElementById('translationText').textContent = '翻訳結果がここに表示されます';
-  lastTranslated = '';
-  historyItems = [];
-  renderHistory();
+  lastTranslated = ''; historyItems = []; renderHistory();
   window.speechSynthesis && window.speechSynthesis.cancel();
 }
 
@@ -784,30 +657,23 @@ function clearAll(){
 // ══════════════════════════════════════════
 (function(){
   const canvas = document.getElementById('bgCanvas');
-  const ctx = canvas.getContext('2d');
+  const ctx    = canvas.getContext('2d');
   let W, H, particles=[];
   function resize(){ W=canvas.width=innerWidth; H=canvas.height=innerHeight; }
-  resize();
-  window.addEventListener('resize', resize);
-
-  for(let i=0;i<60;i++){
-    particles.push({
-      x:Math.random()*1000, y:Math.random()*1000,
-      vx:(Math.random()-.5)*.2, vy:(Math.random()-.5)*.2,
-      r:Math.random()*1.5+.3, a:Math.random()
-    });
-  }
-
+  resize(); window.addEventListener('resize', resize);
+  for(let i=0;i<60;i++) particles.push({
+    x:Math.random()*1000, y:Math.random()*1000,
+    vx:(Math.random()-.5)*.2, vy:(Math.random()-.5)*.2,
+    r:Math.random()*1.5+.3, a:Math.random()
+  });
   function draw(){
     ctx.clearRect(0,0,W,H);
     particles.forEach(p=>{
       p.x+=p.vx; p.y+=p.vy;
       if(p.x<0)p.x=W; if(p.x>W)p.x=0;
       if(p.y<0)p.y=H; if(p.y>H)p.y=0;
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-      ctx.fillStyle=`rgba(64,128,224,${p.a*.3})`;
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(64,128,224,${p.a*.3})`; ctx.fill();
     });
     requestAnimationFrame(draw);
   }
@@ -815,27 +681,27 @@ function clearAll(){
 })();
 
 // ══════════════════════════════════════════
-// 初期化
+// 初期化（DOMContentLoaded後に実行）
 // ══════════════════════════════════════════
-(function init(){
-  // 保存済みのAPIキーとプロバイダーを復元
-  const savedGroq = storageLoad('interpretlayer_key_groq');
-  const savedGemini = storageLoad('interpretlayer_key_gemini');
-  const savedProvider = storageLoad('interpretlayer_provider') || 'groq';
+window.addEventListener('DOMContentLoaded', () => {
+  // 音声リスト読み込み
+  const loadVoices = () => { availableVoices = window.speechSynthesis.getVoices(); };
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+  loadVoices();
 
-  // 旧バージョンのキーも引き継ぐ
-  const legacyKey = storageLoad('interpretlayer_key');
-  if(savedGroq) document.getElementById('groqKey').value = savedGroq;
-  else if(legacyKey) document.getElementById('groqKey').value = legacyKey;
-  if(savedGemini) document.getElementById('geminiKey').value = savedGemini;
+  // 保存済みAPIキー復元
+  const savedGroq    = storageLoad('interpretlayer_key_groq');
+  const savedGemini  = storageLoad('interpretlayer_key_gemini');
+  const legacyKey    = storageLoad('interpretlayer_key');
+  if(savedGroq)       document.getElementById('groqKey').value   = savedGroq;
+  else if(legacyKey)  document.getElementById('groqKey').value   = legacyKey;
+  if(savedGemini)     document.getElementById('geminiKey').value = savedGemini;
 
-  switchProvider(savedProvider);
+  // プロバイダー・性別・言語を復元
+  switchProvider(storageLoad('interpretlayer_provider') || 'groq');
+  setVoiceGender(storageLoad('interpretlayer_gender')   || 'female');
   updateLangLabels();
-
-  // 保存済み性別を復元
-  const savedGender = storageLoad('interpretlayer_gender') || 'female';
-  setVoiceGender(savedGender);
-})();
+});
 </script>
 </body>
 </html>

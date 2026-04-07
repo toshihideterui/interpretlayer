@@ -501,10 +501,44 @@ async function translate(text){
   document.getElementById('translatingIndicator').className = 'translating-indicator show';
   document.getElementById('translationText').textContent = '';
 
-  const prompt = `以下の${srcName}テキストを${tgtName}に翻訳してください。\n翻訳文のみを返してください。説明や前置きは不要です。\n\n原文: ${text}`;
+  // トーン分析 + 翻訳を同時にAIに依頼
+  const prompt = `以下の${srcName}テキストを${tgtName}に翻訳し、話し方のトーンも分析してください。
+必ず以下のJSON形式のみで返してください。説明や前置きは不要です。
+
+{
+  "translation": "翻訳文",
+  "rate": 数値(0.6〜1.6、ゆっくり=0.7、普通=1.0、早口=1.4),
+  "pitch": 数値(0.5〜2.0、低い=0.7、普通=1.0、高い=1.4),
+  "volume": 数値(0.5〜1.0、小さい=0.6、普通=0.9、大きい=1.0)
+}
+
+トーン分析の基準：
+- 感嘆符が多い・短文→rate高め、pitch高め
+- 丁寧・長文→rate低め
+- 疑問文→pitch高め
+- 命令・断言→volume高め
+
+原文: ${text}`;
 
   try{
     let translated = '';
+    let toneParams = { rate: 1.0, pitch: 1.0, volume: 0.9 };
+
+    const parseResponse = (raw) => {
+      try{
+        const json = raw.replace(/```json|```/g,'').trim();
+        const obj = JSON.parse(json);
+        translated = obj.translation || '翻訳失敗';
+        toneParams = {
+          rate: Math.min(1.6, Math.max(0.6, obj.rate || 1.0)),
+          pitch: Math.min(2.0, Math.max(0.5, obj.pitch || 1.0)),
+          volume: Math.min(1.0, Math.max(0.5, obj.volume || 0.9)),
+        };
+      }catch(e){
+        // JSONパース失敗時はそのままテキストとして使用
+        translated = raw.trim();
+      }
+    };
 
     if(currentProvider === 'groq'){
       // ── Groq ──
@@ -514,16 +548,16 @@ async function translate(text){
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
         body:JSON.stringify({
           model:'llama-3.3-70b-versatile',
-          max_tokens:400, temperature:0.3,
+          max_tokens:500, temperature:0.3,
           messages:[{role:'user',content:prompt}]
         })
       });
       const data = await res.json();
       if(data.error) throw new Error(data.error.message);
-      translated = data.choices?.[0]?.message?.content?.trim() || '翻訳失敗';
+      parseResponse(data.choices?.[0]?.message?.content || '翻訳失敗');
 
     } else {
-      // ── Gemini ──
+      // ── Gemma ──
       const apiKey = storageLoad('interpretlayer_key_gemini') || document.getElementById('geminiKey').value.trim();
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${apiKey}`,
@@ -532,19 +566,19 @@ async function translate(text){
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
             contents:[{parts:[{text:prompt}]}],
-            generationConfig:{maxOutputTokens:400, temperature:0.3}
+            generationConfig:{maxOutputTokens:500, temperature:0.3}
           })
         }
       );
       const data = await res.json();
       if(data.error) throw new Error(data.error.message);
-      translated = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '翻訳失敗';
+      parseResponse(data.candidates?.[0]?.content?.parts?.[0]?.text || '翻訳失敗');
     }
 
     document.getElementById('translationText').textContent = translated;
     document.getElementById('translatingIndicator').className = 'translating-indicator';
 
-    speakText(translated, tgtLang);
+    speakText(translated, tgtLang, toneParams);
     addHistory(text, translated, srcName, tgtName);
 
   }catch(e){
@@ -555,17 +589,25 @@ async function translate(text){
 }
 
 // ══════════════════════════════════════════
-// 読み上げ
+// 読み上げ（トーン対応）
 // ══════════════════════════════════════════
-function speakText(text, lang){
+function speakText(text, lang, tone={}){
   if(!speechEnabled) return;
   if(!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(text);
   utt.lang = lang.includes('-') ? lang : lang+'-'+lang.toUpperCase();
-  utt.rate = 0.95;
-  document.getElementById('speakIndicator').textContent = '🔊 読み上げ中…';
-  utt.onend = () => { document.getElementById('speakIndicator').textContent = ''; };
+  utt.rate   = tone.rate   ?? 1.0;
+  utt.pitch  = tone.pitch  ?? 1.0;
+  utt.volume = tone.volume ?? 0.9;
+
+  // トーン表示
+  const indicator = document.getElementById('speakIndicator');
+  const toneLabel = tone.rate
+    ? `🔊 読み上げ中… (速度:${tone.rate.toFixed(1)} ピッチ:${tone.pitch.toFixed(1)})`
+    : '🔊 読み上げ中…';
+  indicator.textContent = toneLabel;
+  utt.onend = () => { indicator.textContent = ''; };
   window.speechSynthesis.speak(utt);
 }
 

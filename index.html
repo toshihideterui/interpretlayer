@@ -170,7 +170,7 @@ footer{text-align:center;padding:24px 0 60px;font-size:0.58rem;letter-spacing:0.
       <label>🤖 AIプロバイダー選択</label>
       <div class="provider-switch">
         <button class="provider-btn active-groq" id="btnGroq" onclick="switchProvider('groq')">⚡ Groq</button>
-        <button class="provider-btn" id="btnGemini" onclick="switchProvider('gemini')">✨ Gemini</button>
+        <button class="provider-btn" id="btnGemini" onclick="switchProvider('gemini')">🌿 Gemma</button>
       </div>
       <div id="providerBadge" class="provider-badge badge-groq">Groq — llama-3.3-70b-versatile</div>
     </div>
@@ -187,12 +187,12 @@ footer{text-align:center;padding:24px 0 60px;font-size:0.58rem;letter-spacing:0.
 
     <!-- Gemini APIキー -->
     <div id="geminiKeyWrap" class="field" style="display:none">
-      <label>✨ Gemini APIキー</label>
+      <label>🌿 Gemma APIキー（Google AI Studio）</label>
       <div style="display:flex;gap:8px;align-items:flex-start">
         <textarea id="geminiKey" rows="2" placeholder="AIza..." style="-webkit-text-security:disc;text-security:disc;border-color:rgba(32,208,128,0.2)!important"></textarea>
         <button onclick="toggleKey('geminiKey','toggleGemini')" id="toggleGemini" style="padding:10px 12px;background:transparent;border:1px solid rgba(32,208,128,0.2);color:var(--text-dim);font-size:0.72rem;cursor:pointer;white-space:nowrap">表示</button>
       </div>
-      <p style="font-size:0.6rem;color:rgba(96,248,176,0.5);margin-top:5px;line-height:1.8">aistudio.google.com で無料取得。gemini-2.0-flash使用</p>
+      <p style="font-size:0.6rem;color:rgba(96,248,176,0.5);margin-top:5px;line-height:1.8">aistudio.google.com で無料取得。gemma-3-27b-it使用</p>
     </div>
   </div>
 
@@ -333,7 +333,7 @@ function switchProvider(p){
     groqWrap.style.display = 'none';
     geminiWrap.style.display = '';
     badge.className = 'provider-badge badge-gemini';
-    badge.textContent = 'Gemini — gemini-2.0-flash';
+    badge.textContent = 'Gemma — gemma-3-27b-it';
   }
 }
 
@@ -526,7 +526,7 @@ async function translate(text){
       // ── Gemini ──
       const apiKey = storageLoad('interpretlayer_key_gemini') || document.getElementById('geminiKey').value.trim();
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${apiKey}`,
         {
           method:'POST',
           headers:{'Content-Type':'application/json'},

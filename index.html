@@ -283,22 +283,6 @@
   }
   .show-btn:hover { border-color:var(--accent); color:var(--accent); }
   .apikey-note { font-size:11px; color:var(--text-sub); line-height:1.5; }
-  .gender-btn {
-    background:var(--surface2);
-    border:1px solid var(--border);
-    color:var(--text-sub);
-    border-radius:8px;
-    padding:7px 6px;
-    font-size:12px;
-    cursor:pointer;
-    transition:all .2s;
-    text-align:center;
-  }
-  .gender-btn.active {
-    border-color:var(--accent);
-    color:var(--accent);
-    background:rgba(0,229,255,0.08);
-  }
   /* speech */
   .speech-row { display:flex; gap:8px; align-items:center; }
   .mic-btn {
@@ -476,24 +460,7 @@
         <option value="my">🇲🇲 မြန်မာဘာသာ（ミャンマー語）</option>
       </select>
     </div>
-    <!-- voice gender selection -->
-    <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:8px;align-items:center;margin-top:10px;">
-      <div>
-        <div style="font-size:10px;letter-spacing:2px;color:var(--text-sub);text-transform:uppercase;margin-bottom:6px;">入力側の声</div>
-        <div style="display:flex;gap:6px;">
-          <button class="gender-btn active" id="srcGenderM" onclick="setGender('src','male')" style="flex:1;">👨 男性</button>
-          <button class="gender-btn" id="srcGenderF" onclick="setGender('src','female')" style="flex:1;">👩 女性</button>
-        </div>
-      </div>
-      <div></div>
-      <div>
-        <div style="font-size:10px;letter-spacing:2px;color:var(--text-sub);text-transform:uppercase;margin-bottom:6px;">翻訳側の声</div>
-        <div style="display:flex;gap:6px;">
-          <button class="gender-btn active" id="tgtGenderM" onclick="setGender('tgt','male')" style="flex:1;">👨 男性</button>
-          <button class="gender-btn" id="tgtGenderF" onclick="setGender('tgt','female')" style="flex:1;">👩 女性</button>
-        </div>
-      </div>
-    </div>
+
   </div>
 
   <!-- text mode -->
@@ -608,40 +575,7 @@ let recognition = null;
 let isListening = false;
 let liveRecognition = null;
 let isLive = false;
-let srcGender = 'male';
-let tgtGender = 'male';
 
-function setGender(side, gender) {
-  if (side === 'src') {
-    srcGender = gender;
-    document.getElementById('srcGenderM').classList.toggle('active', gender === 'male');
-    document.getElementById('srcGenderF').classList.toggle('active', gender === 'female');
-  } else {
-    tgtGender = gender;
-    document.getElementById('tgtGenderM').classList.toggle('active', gender === 'male');
-    document.getElementById('tgtGenderF').classList.toggle('active', gender === 'female');
-  }
-}
-
-function getVoiceForLang(langCode, gender) {
-  const voices = speechSynthesis.getVoices();
-  const ttsLang = TTS_LANG[langCode] || 'en-US';
-  const langBase = ttsLang.split('-')[0].toLowerCase();
-
-  // 対象言語のvoiceを絞り込む
-  const candidates = voices.filter(v => v.lang.toLowerCase().startsWith(langBase));
-  if (candidates.length === 0) return null;
-
-  // 性別キーワードで絞り込む
-  const maleWords   = ['male', 'man', 'guy', 'david', 'mark', 'daniel', 'jorge', 'thomas', 'reed', 'albert'];
-  const femaleWords = ['female', 'woman', 'girl', 'zira', 'susan', 'karen', 'samantha', 'alice', 'amelie', 'monica'];
-  const keywords = gender === 'male' ? maleWords : femaleWords;
-
-  const matched = candidates.find(v =>
-    keywords.some(k => v.name.toLowerCase().includes(k))
-  );
-  return matched || candidates[0]; // マッチしなければ最初のvoiceを使用
-}
 
 window.onload = () => {
   document.getElementById('groqKey').value = localStorage.getItem('groqKey') || '';
@@ -737,11 +671,8 @@ function speak(textId, langId) {
   const text = document.getElementById(textId)?.value;
   if (!text) return;
   const lang = document.getElementById(langId)?.value || 'en';
-  const gender = langId === 'srcLang' ? srcGender : tgtGender;
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = TTS_LANG[lang] || 'en-US';
-  const voice = getVoiceForLang(lang, gender);
-  if (voice) utter.voice = voice;
   speechSynthesis.cancel();
   speechSynthesis.speak(utter);
 }
@@ -823,13 +754,11 @@ Respond in JSON only, no markdown: {"detected":"src","translation":"..."}`;
   return JSON.parse(raw.replace(/```json|```/g, '').trim());
 }
 
-function speakAndRestart(translation, toLang, gender) {
+function speakAndRestart(translation, toLang) {
   isSpeaking = true;
   speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(translation);
   utter.lang = TTS_LANG[toLang] || 'en-US';
-  const voice = getVoiceForLang(toLang, gender || 'male');
-  if (voice) utter.voice = voice;
 
   // TTSが終わったら認識を再開 — onendが来なくてもタイマーで強制再開
   let restarted = false;
@@ -892,8 +821,7 @@ function startLiveLoop() {
 
       addLiveLog(text, translation, fromFlag, toFlag);
       addHistory(text, translation, isSrc ? srcLang : tgtLang, toLang);
-      const speakGender = isSrc ? tgtGender : srcGender;
-      speakAndRestart(translation, toLang, speakGender);
+      speakAndRestart(translation, toLang);
     } catch (err) {
       document.getElementById('live-interim').textContent = '⚠ ' + err.message;
       setTimeout(() => { if (isLive) startLiveLoop(); }, 2000);

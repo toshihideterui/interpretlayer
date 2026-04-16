@@ -421,7 +421,7 @@
         <span class="dot"></span>
         <div>
           <div class="model-name">Gemma</div>
-          <div class="model-sub">gemma2-9b-it</div>
+          <div class="model-sub">gemma-3-27b-it</div>
         </div>
       </button>
     </div>
@@ -678,7 +678,7 @@ async function callAI(text, srcLang, tgtLang) {
   } else {
     // Gemma (Google Generative Language API)
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemma-2-9b-it:generateContent?key=${gemmaKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${gemmaKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

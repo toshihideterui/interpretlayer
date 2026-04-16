@@ -283,6 +283,22 @@
   }
   .show-btn:hover { border-color:var(--accent); color:var(--accent); }
   .apikey-note { font-size:11px; color:var(--text-sub); line-height:1.5; }
+  .gender-btn {
+    background:var(--surface2);
+    border:1px solid var(--border);
+    color:var(--text-sub);
+    border-radius:8px;
+    padding:7px 6px;
+    font-size:12px;
+    cursor:pointer;
+    transition:all .2s;
+    text-align:center;
+  }
+  .gender-btn.active {
+    border-color:var(--accent);
+    color:var(--accent);
+    background:rgba(0,229,255,0.08);
+  }
   /* speech */
   .speech-row { display:flex; gap:8px; align-items:center; }
   .mic-btn {
@@ -460,6 +476,24 @@
         <option value="my">🇲🇲 မြန်မာဘာသာ（ミャンマー語）</option>
       </select>
     </div>
+    <!-- voice gender selection -->
+    <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:8px;align-items:center;margin-top:10px;">
+      <div>
+        <div style="font-size:10px;letter-spacing:2px;color:var(--text-sub);text-transform:uppercase;margin-bottom:6px;">入力側の声</div>
+        <div style="display:flex;gap:6px;">
+          <button class="gender-btn active" id="srcGenderM" onclick="setGender('src','male')" style="flex:1;">👨 男性</button>
+          <button class="gender-btn" id="srcGenderF" onclick="setGender('src','female')" style="flex:1;">👩 女性</button>
+        </div>
+      </div>
+      <div></div>
+      <div>
+        <div style="font-size:10px;letter-spacing:2px;color:var(--text-sub);text-transform:uppercase;margin-bottom:6px;">翻訳側の声</div>
+        <div style="display:flex;gap:6px;">
+          <button class="gender-btn active" id="tgtGenderM" onclick="setGender('tgt','male')" style="flex:1;">👨 男性</button>
+          <button class="gender-btn" id="tgtGenderF" onclick="setGender('tgt','female')" style="flex:1;">👩 女性</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- text mode -->
@@ -574,6 +608,40 @@ let recognition = null;
 let isListening = false;
 let liveRecognition = null;
 let isLive = false;
+let srcGender = 'male';
+let tgtGender = 'male';
+
+function setGender(side, gender) {
+  if (side === 'src') {
+    srcGender = gender;
+    document.getElementById('srcGenderM').classList.toggle('active', gender === 'male');
+    document.getElementById('srcGenderF').classList.toggle('active', gender === 'female');
+  } else {
+    tgtGender = gender;
+    document.getElementById('tgtGenderM').classList.toggle('active', gender === 'male');
+    document.getElementById('tgtGenderF').classList.toggle('active', gender === 'female');
+  }
+}
+
+function getVoiceForLang(langCode, gender) {
+  const voices = speechSynthesis.getVoices();
+  const ttsLang = TTS_LANG[langCode] || 'en-US';
+  const langBase = ttsLang.split('-')[0].toLowerCase();
+
+  // 対象言語のvoiceを絞り込む
+  const candidates = voices.filter(v => v.lang.toLowerCase().startsWith(langBase));
+  if (candidates.length === 0) return null;
+
+  // 性別キーワードで絞り込む
+  const maleWords   = ['male', 'man', 'guy', 'david', 'mark', 'daniel', 'jorge', 'thomas', 'reed', 'albert'];
+  const femaleWords = ['female', 'woman', 'girl', 'zira', 'susan', 'karen', 'samantha', 'alice', 'amelie', 'monica'];
+  const keywords = gender === 'male' ? maleWords : femaleWords;
+
+  const matched = candidates.find(v =>
+    keywords.some(k => v.name.toLowerCase().includes(k))
+  );
+  return matched || candidates[0]; // マッチしなければ最初のvoiceを使用
+}
 
 window.onload = () => {
   document.getElementById('groqKey').value = localStorage.getItem('groqKey') || '';
@@ -669,8 +737,11 @@ function speak(textId, langId) {
   const text = document.getElementById(textId)?.value;
   if (!text) return;
   const lang = document.getElementById(langId)?.value || 'en';
+  const gender = langId === 'srcLang' ? srcGender : tgtGender;
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = TTS_LANG[lang] || 'en-US';
+  const voice = getVoiceForLang(lang, gender);
+  if (voice) utter.voice = voice;
   speechSynthesis.cancel();
   speechSynthesis.speak(utter);
 }
@@ -711,21 +782,12 @@ function toggleMic() {
 }
 
 // Bidirectional live interpretation (AI language detection)
-let liveDebounce = null;
 let isSpeaking = false;
 
-function addLiveLog(detectedLang, translateTo, srcText, tgtText) {
+function addLiveLog(srcText, tgtText, fromFlag, toFlag) {
   const log = document.getElementById('live-log');
   const placeholder = log.querySelector('[data-placeholder]');
   if (placeholder) placeholder.remove();
-
-  const srcOpts = document.getElementById('srcLang').options;
-  const tgtOpts = document.getElementById('tgtLang').options;
-  const srcFlag = srcOpts[srcOpts.selectedIndex].text.split(' ')[0];
-  const tgtFlag = tgtOpts[tgtOpts.selectedIndex].text.split(' ')[0];
-  const fromFlag = detectedLang === document.getElementById('srcLang').value ? srcFlag : tgtFlag;
-  const toFlag   = detectedLang === document.getElementById('srcLang').value ? tgtFlag : srcFlag;
-
   const el = document.createElement('div');
   el.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;';
   el.innerHTML = `
@@ -744,117 +806,123 @@ async function callAI_detect(text, srcLang, tgtLang) {
   const tgtName = LANG_NAMES[tgtLang] || tgtLang;
   const prompt = `You are a bilingual interpreter between ${srcName} and ${tgtName}.
 The user said: "${text}"
-First, detect whether this text is in ${srcName} or ${tgtName}.
-Then translate it to the OTHER language.
-Respond in JSON only, no markdown:
-{"detected": "src" or "tgt", "translation": "translated text here"}`;
+Detect whether this is ${srcName} or ${tgtName}, then translate to the OTHER language.
+Respond in JSON only, no markdown: {"detected":"src","translation":"..."}`;
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + groqKey },
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 512,
-      temperature: 0.1
+      max_tokens: 512, temperature: 0.1
     })
   });
   if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Groqエラー'); }
   const data = await res.json();
   const raw = data.choices?.[0]?.message?.content?.trim() || '{}';
-  const clean = raw.replace(/```json|```/g, '').trim();
-  return JSON.parse(clean);
+  return JSON.parse(raw.replace(/```json|```/g, '').trim());
 }
 
-function startLiveRecognition() {
-  if (!isLive) return;
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  liveRecognition = new SR();
-  // Use srcLang for recognition base (Web Speech API needs some lang hint)
-  // AI will correct the detection regardless
-  liveRecognition.lang = TTS_LANG[document.getElementById('srcLang').value] || 'ja-JP';
-  liveRecognition.interimResults = true;
-  liveRecognition.continuous = false;
+function speakAndRestart(translation, toLang, gender) {
+  isSpeaking = true;
+  speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(translation);
+  utter.lang = TTS_LANG[toLang] || 'en-US';
+  const voice = getVoiceForLang(toLang, gender || 'male');
+  if (voice) utter.voice = voice;
 
-  liveRecognition.onresult = (e) => {
+  // TTSが終わったら認識を再開 — onendが来なくてもタイマーで強制再開
+  let restarted = false;
+  const doRestart = () => {
+    if (restarted) return;
+    restarted = true;
+    isSpeaking = false;
+    if (isLive) {
+      document.getElementById('live-interim').textContent = '';
+      document.getElementById('live-listener').textContent = '🌐 話しかけてください（言語を自動判定します）';
+      // 少し間を置いてから再起動
+      setTimeout(startLiveLoop, 500);
+    }
+  };
+
+  utter.onend = doRestart;
+  utter.onerror = doRestart;
+  // 読み上げ時間の上限を文字数×150ms+2秒で設定
+  setTimeout(doRestart, translation.length * 150 + 2000);
+  speechSynthesis.speak(utter);
+}
+
+function startLiveLoop() {
+  if (!isLive || isSpeaking) return;
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SR();
+  rec.lang = TTS_LANG[document.getElementById('srcLang').value] || 'ja-JP';
+  rec.interimResults = true;
+  rec.continuous = false;
+  liveRecognition = rec;
+
+  rec.onresult = async (e) => {
     const last = e.results[e.results.length - 1];
     const text = last[0].transcript;
     document.getElementById('live-interim').textContent = '🎤 ' + text;
 
-    if (last.isFinal) {
-      clearTimeout(liveDebounce);
-      liveDebounce = setTimeout(async () => {
-        if (isSpeaking) return; // skip if TTS is playing
-        document.getElementById('live-interim').textContent = '⚡ AI判定・翻訳中...';
-        const srcLang = document.getElementById('srcLang').value;
-        const tgtLang = document.getElementById('tgtLang').value;
-        try {
-          const result = await callAI_detect(text, srcLang, tgtLang);
-          const detectedKey = result.detected === 'src' ? srcLang : tgtLang;
-          const translateTo  = result.detected === 'src' ? tgtLang : srcLang;
-          const translation  = result.translation || '翻訳失敗';
+    if (!last.isFinal) return;
 
-          document.getElementById('live-interim').textContent = '';
-          addLiveLog(detectedKey, translateTo, text, translation);
-          addHistory(text, translation, detectedKey, translateTo);
+    // finalが来たら即座に認識を止めてAI処理へ
+    rec.onend = null;
+    rec.stop();
 
-          // TTS
-          isSpeaking = true;
-          const utter = new SpeechSynthesisUtterance(translation);
-          utter.lang = TTS_LANG[translateTo] || 'en-US';
-          speechSynthesis.cancel();
+    document.getElementById('live-interim').textContent = '⚡ AI判定・翻訳中...';
+    const srcLang = document.getElementById('srcLang').value;
+    const tgtLang = document.getElementById('tgtLang').value;
 
-          const resumeAfterTTS = () => {
-            if (!isSpeaking) return;
-            isSpeaking = false;
-            if (isLive) startLiveRecognition();
-          };
+    const srcOpts = document.getElementById('srcLang').options;
+    const tgtOpts = document.getElementById('tgtLang').options;
+    const srcFlag = srcOpts[srcOpts.selectedIndex].text.split(' ')[0];
+    const tgtFlag = tgtOpts[tgtOpts.selectedIndex].text.split(' ')[0];
 
-          utter.onend = resumeAfterTTS;
-          utter.onerror = resumeAfterTTS;
+    try {
+      const result = await callAI_detect(text, srcLang, tgtLang);
+      const isSrc = result.detected !== 'tgt';
+      const fromFlag = isSrc ? srcFlag : tgtFlag;
+      const toFlag   = isSrc ? tgtFlag : srcFlag;
+      const toLang   = isSrc ? tgtLang : srcLang;
+      const translation = result.translation || '翻訳失敗';
 
-          // fallback: estimate duration from text length + 3sec buffer
-          const fallbackMs = Math.max(3000, translation.length * 120);
-          const fallbackTimer = setTimeout(resumeAfterTTS, fallbackMs);
-
-          utter.onend = () => { clearTimeout(fallbackTimer); resumeAfterTTS(); };
-          utter.onerror = () => { clearTimeout(fallbackTimer); resumeAfterTTS(); };
-
-          speechSynthesis.speak(utter);
-
-          // Chrome bug: speechSynthesis pauses after ~15s, keepalive workaround
-          const keepAlive = setInterval(() => {
-            if (!isSpeaking) { clearInterval(keepAlive); return; }
-            if (speechSynthesis.paused) speechSynthesis.resume();
-          }, 5000);
-        } catch (err) {
-          document.getElementById('live-interim').textContent = '⚠ ' + err.message;
-          setTimeout(() => { if (isLive) startLiveRecognition(); }, 1500);
-        }
-      }, 400);
+      addLiveLog(text, translation, fromFlag, toFlag);
+      addHistory(text, translation, isSrc ? srcLang : tgtLang, toLang);
+      const speakGender = isSrc ? tgtGender : srcGender;
+      speakAndRestart(translation, toLang, speakGender);
+    } catch (err) {
+      document.getElementById('live-interim').textContent = '⚠ ' + err.message;
+      setTimeout(() => { if (isLive) startLiveLoop(); }, 2000);
     }
   };
 
-  liveRecognition.onerror = (e) => {
+  rec.onerror = (e) => {
     if (e.error === 'no-speech') {
-      if (isLive && !isSpeaking) startLiveRecognition();
+      // 無音なら静かに再起動
+      setTimeout(() => { if (isLive && !isSpeaking) startLiveLoop(); }, 300);
     } else {
       setStatus('statusLive', '音声エラー: ' + e.error, 'error');
     }
   };
 
-  liveRecognition.onend = () => {
-    // restart handled in onresult/onerror
+  rec.onend = () => {
+    // onresultでfinalが来なかった場合（途中で止まった等）→ 再起動
+    setTimeout(() => { if (isLive && !isSpeaking) startLiveLoop(); }, 300);
   };
 
-  liveRecognition.start();
+  rec.start();
 }
 
 function toggleLive() {
   if (isLive) {
-    liveRecognition?.stop();
-    speechSynthesis.cancel();
     isLive = false;
     isSpeaking = false;
+    liveRecognition?.abort();
+    speechSynthesis.cancel();
     document.getElementById('liveMicBtn').textContent = '⚡ ライブ開始';
     document.getElementById('liveMicBtn').classList.remove('listening');
     document.getElementById('live-listener').style.display = 'none';
@@ -876,7 +944,7 @@ function toggleLive() {
   document.getElementById('liveMicBtn').textContent = '⏹ 停止';
   document.getElementById('liveMicBtn').classList.add('listening');
   setStatus('statusLive', '');
-  startLiveRecognition();
+  startLiveLoop();
 }
 
 function addHistory(src, result, srcLang, tgtLang) {

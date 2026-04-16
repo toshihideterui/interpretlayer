@@ -443,40 +443,40 @@
     <div class="lang-row">
       <select class="lang-select" id="srcLang">
         <option value="ja">🇯🇵 日本語</option>
-        <option value="en">🇺🇸 English</option>
-        <option value="zh">🇨🇳 中文</option>
-        <option value="ko">🇰🇷 한국어</option>
-        <option value="es">🇪🇸 Español</option>
-        <option value="fr">🇫🇷 Français</option>
-        <option value="de">🇩🇪 Deutsch</option>
-        <option value="pt">🇧🇷 Português</option>
-        <option value="ru">🇷🇺 Русский</option>
-        <option value="ar">🇸🇦 العربية</option>
-        <option value="hi">🇮🇳 हिंदी</option>
-        <option value="th">🇹🇭 ภาษาไทย</option>
-        <option value="vi">🇻🇳 Tiếng Việt</option>
-        <option value="id">🇮🇩 Bahasa Indonesia</option>
-        <option value="tl">🇵🇭 Filipino</option>
-        <option value="my">🇲🇲 မြန်မာဘာသာ</option>
+        <option value="en">🇺🇸 English（英語）</option>
+        <option value="zh">🇨🇳 中文（中国語）</option>
+        <option value="ko">🇰🇷 한국어（韓国語）</option>
+        <option value="es">🇪🇸 Español（スペイン語）</option>
+        <option value="fr">🇫🇷 Français（フランス語）</option>
+        <option value="de">🇩🇪 Deutsch（ドイツ語）</option>
+        <option value="pt">🇧🇷 Português（ポルトガル語）</option>
+        <option value="ru">🇷🇺 Русский（ロシア語）</option>
+        <option value="ar">🇸🇦 العربية（アラビア語）</option>
+        <option value="hi">🇮🇳 हिंदी（ヒンディー語）</option>
+        <option value="th">🇹🇭 ภาษาไทย（タイ語）</option>
+        <option value="vi">🇻🇳 Tiếng Việt（ベトナム語）</option>
+        <option value="id">🇮🇩 Bahasa Indonesia（インドネシア語）</option>
+        <option value="tl">🇵🇭 Filipino（フィリピン語）</option>
+        <option value="my">🇲🇲 မြန်မာဘာသာ（ミャンマー語）</option>
       </select>
       <button class="swap-btn" onclick="swapLangs()">⇄</button>
       <select class="lang-select" id="tgtLang">
-        <option value="en">🇺🇸 English</option>
+        <option value="en">🇺🇸 English（英語）</option>
         <option value="ja">🇯🇵 日本語</option>
-        <option value="zh">🇨🇳 中文</option>
-        <option value="ko">🇰🇷 한국어</option>
-        <option value="es">🇪🇸 Español</option>
-        <option value="fr">🇫🇷 Français</option>
-        <option value="de">🇩🇪 Deutsch</option>
-        <option value="pt">🇧🇷 Português</option>
-        <option value="ru">🇷🇺 Русский</option>
-        <option value="ar">🇸🇦 العربية</option>
-        <option value="hi">🇮🇳 हिंदी</option>
-        <option value="th">🇹🇭 ภาษาไทย</option>
-        <option value="vi">🇻🇳 Tiếng Việt</option>
-        <option value="id">🇮🇩 Bahasa Indonesia</option>
-        <option value="tl">🇵🇭 Filipino</option>
-        <option value="my">🇲🇲 မြန်မာဘာသာ</option>
+        <option value="zh">🇨🇳 中文（中国語）</option>
+        <option value="ko">🇰🇷 한국어（韓国語）</option>
+        <option value="es">🇪🇸 Español（スペイン語）</option>
+        <option value="fr">🇫🇷 Français（フランス語）</option>
+        <option value="de">🇩🇪 Deutsch（ドイツ語）</option>
+        <option value="pt">🇧🇷 Português（ポルトガル語）</option>
+        <option value="ru">🇷🇺 Русский（ロシア語）</option>
+        <option value="ar">🇸🇦 العربية（アラビア語）</option>
+        <option value="hi">🇮🇳 हिंदी（ヒンディー語）</option>
+        <option value="th">🇹🇭 ภาษาไทย（タイ語）</option>
+        <option value="vi">🇻🇳 Tiếng Việt（ベトナム語）</option>
+        <option value="id">🇮🇩 Bahasa Indonesia（インドネシア語）</option>
+        <option value="tl">🇵🇭 Filipino（フィリピン語）</option>
+        <option value="my">🇲🇲 မြန်မာဘာသာ（ミャンマー語）</option>
       </select>
     </div>
   </div>
@@ -564,6 +564,10 @@
       </div>
     </div>
     <div class="apikey-note">どちらか一方のAPIキーがあれば動作します。両方入力するとGroqを優先します。</div>
+    <div style="margin-top:8px; display:flex; gap:16px; justify-content:flex-end;">
+      <a href="https://console.groq.com/keys" target="_blank" style="font-size:10px;color:var(--text-sub);text-decoration:none;letter-spacing:1px;opacity:0.5;transition:opacity .2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">⚡ Groqキーを取得</a>
+      <a href="https://aistudio.google.com/apikey" target="_blank" style="font-size:10px;color:var(--text-sub);text-decoration:none;letter-spacing:1px;opacity:0.5;transition:opacity .2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">◆ Gemmaキーを取得</a>
+    </div>
   </div>
 
   <!-- history -->

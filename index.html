@@ -406,26 +406,7 @@
     <div class="subtitle">AI同時通訳 / Real-Time Interpreter</div>
   </header>
 
-  <!-- AI model -->
-  <div class="card">
-    <div class="card-title">🤖 AIモデル</div>
-    <div class="model-options">
-      <button class="model-btn active" id="btnGroq" onclick="selectModel('groq')">
-        <span class="dot"></span>
-        <div>
-          <div class="model-name">Groq</div>
-          <div class="model-sub">llama-3.3-70b</div>
-        </div>
-      </button>
-      <button class="model-btn" id="btnGemma" onclick="selectModel('gemma')">
-        <span class="dot"></span>
-        <div>
-          <div class="model-name">Gemma</div>
-          <div class="model-sub">gemma-3-27b-it</div>
-        </div>
-      </button>
-    </div>
-  </div>
+
 
   <!-- mode -->
   <div class="card">
@@ -553,27 +534,13 @@
 
   <!-- API keys -->
   <div class="card">
-    <div class="card-title">🔑 APIキー設定</div>
-    <div class="apikey-grid">
-      <div>
-        <div class="apikey-label groq">⚡ Groq APIキー</div>
-        <div class="apikey-row">
-          <input class="apikey-input" type="password" id="groqKey" placeholder="gsk_..." oninput="saveKeys()">
-          <button class="show-btn" onclick="toggleShow('groqKey',this)">表示</button>
-        </div>
-      </div>
-      <div>
-        <div class="apikey-label gemma">◆ Gemma APIキー</div>
-        <div class="apikey-row">
-          <input class="apikey-input" type="password" id="gemmaKey" placeholder="AIza..." oninput="saveKeys()">
-          <button class="show-btn" onclick="toggleShow('gemmaKey',this)">表示</button>
-        </div>
-      </div>
+    <div class="card-title">🔑 GROQ API キー</div>
+    <div class="apikey-row">
+      <input class="apikey-input" type="password" id="groqKey" placeholder="gsk_..." oninput="saveKeys()">
+      <button class="show-btn" onclick="toggleShow('groqKey',this)">表示</button>
     </div>
-    <div class="apikey-note">どちらか一方のAPIキーがあれば動作します。両方入力するとGroqを優先します。</div>
-    <div style="margin-top:8px; display:flex; gap:16px; justify-content:flex-end;">
-      <a href="https://console.groq.com/keys" target="_blank" style="font-size:10px;color:var(--text-sub);text-decoration:none;letter-spacing:1px;opacity:0.5;transition:opacity .2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">⚡ Groqキーを取得</a>
-      <a href="https://aistudio.google.com/apikey" target="_blank" style="font-size:10px;color:var(--text-sub);text-decoration:none;letter-spacing:1px;opacity:0.5;transition:opacity .2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">◆ Gemmaキーを取得</a>
+    <div class="apikey-note" style="margin-top:10px;">
+      Groq（llama-3.3-70b）を使用します。<a href="https://console.groq.com/keys" target="_blank" style="color:var(--accent);text-decoration:none;">console.groq.com</a> で無料取得できます。
     </div>
   </div>
 
@@ -601,7 +568,6 @@ const TTS_LANG = {
   vi:'vi-VN', id:'id-ID', tl:'fil-PH', my:'my-MM'
 };
 
-let selectedModel = 'groq';
 let mode = 'text';
 let history = JSON.parse(localStorage.getItem('interpretHistory') || '[]');
 let recognition = null;
@@ -611,13 +577,11 @@ let isLive = false;
 
 window.onload = () => {
   document.getElementById('groqKey').value = localStorage.getItem('groqKey') || '';
-  document.getElementById('gemmaKey').value = localStorage.getItem('gemmaKey') || '';
   renderHistory();
 };
 
 function saveKeys() {
   localStorage.setItem('groqKey', document.getElementById('groqKey').value);
-  localStorage.setItem('gemmaKey', document.getElementById('gemmaKey').value);
 }
 
 function toggleShow(id, btn) {
@@ -627,11 +591,7 @@ function toggleShow(id, btn) {
   btn.textContent = isPass ? '隠す' : '表示';
 }
 
-function selectModel(m) {
-  selectedModel = m;
-  document.getElementById('btnGroq').classList.toggle('active', m === 'groq');
-  document.getElementById('btnGemma').classList.toggle('active', m === 'gemma');
-}
+
 
 function setMode(m) {
   mode = m;
@@ -660,49 +620,24 @@ function setStatus(id, msg, type='') {
 }
 
 async function callAI(text, srcLang, tgtLang) {
-  const groqKey  = document.getElementById('groqKey').value.trim();
-  const gemmaKey = document.getElementById('gemmaKey').value.trim();
-
-  if (!groqKey && !gemmaKey) throw new Error('APIキーを入力してください');
-
+  const groqKey = document.getElementById('groqKey').value.trim();
+  if (!groqKey) throw new Error('Groq APIキーを入力してください');
   const srcName = LANG_NAMES[srcLang] || srcLang;
   const tgtName = LANG_NAMES[tgtLang] || tgtLang;
-  const prompt  = `Translate the following text from ${srcName} to ${tgtName}. Return ONLY the translated text, no explanation.\n\nText: ${text}`;
-
-  // Groq優先（両方入力時 or Groq選択時）
-  const useGroq = groqKey && (selectedModel === 'groq' || !gemmaKey);
-
-  if (useGroq) {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + groqKey },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 1024,
-        temperature: 0.3
-      })
-    });
-    if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Groqエラー'); }
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content?.trim() || '翻訳失敗';
-  } else {
-    // Gemma (Google Generative Language API)
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${gemmaKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 1024 }
-        })
-      }
-    );
-    if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Gemmaエラー'); }
-    const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '翻訳失敗';
-  }
+  const prompt = `Translate the following text from ${srcName} to ${tgtName}. Return ONLY the translated text, no explanation.\n\nText: ${text}`;
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + groqKey },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 1024,
+      temperature: 0.3
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Groqエラー'); }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content?.trim() || '翻訳失敗';
 }
 
 async function translate() {
@@ -803,56 +738,31 @@ function addLiveLog(detectedLang, translateTo, srcText, tgtText) {
 }
 
 async function callAI_detect(text, srcLang, tgtLang) {
-  const groqKey  = document.getElementById('groqKey').value.trim();
-  const gemmaKey = document.getElementById('gemmaKey').value.trim();
-  if (!groqKey && !gemmaKey) throw new Error('APIキーを入力してください');
-
+  const groqKey = document.getElementById('groqKey').value.trim();
+  if (!groqKey) throw new Error('Groq APIキーを入力してください');
   const srcName = LANG_NAMES[srcLang] || srcLang;
   const tgtName = LANG_NAMES[tgtLang] || tgtLang;
-
   const prompt = `You are a bilingual interpreter between ${srcName} and ${tgtName}.
 The user said: "${text}"
 First, detect whether this text is in ${srcName} or ${tgtName}.
 Then translate it to the OTHER language.
 Respond in JSON only, no markdown:
 {"detected": "src" or "tgt", "translation": "translated text here"}`;
-
-  const useGroq = groqKey && (document.getElementById('btnGroq').classList.contains('active') || !gemmaKey);
-
-  if (useGroq) {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + groqKey },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 512,
-        temperature: 0.1
-      })
-    });
-    if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Groqエラー'); }
-    const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content?.trim() || '{}';
-    const clean = raw.replace(/```json|```/g, '').trim();
-    return JSON.parse(clean);
-  } else {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${gemmaKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 512 }
-        })
-      }
-    );
-    if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Gemmaエラー'); }
-    const data = await res.json();
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '{}';
-    const clean = raw.replace(/```json|```/g, '').trim();
-    return JSON.parse(clean);
-  }
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + groqKey },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 512,
+      temperature: 0.1
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Groqエラー'); }
+  const data = await res.json();
+  const raw = data.choices?.[0]?.message?.content?.trim() || '{}';
+  const clean = raw.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
 }
 
 function startLiveRecognition() {
@@ -892,15 +802,30 @@ function startLiveRecognition() {
           const utter = new SpeechSynthesisUtterance(translation);
           utter.lang = TTS_LANG[translateTo] || 'en-US';
           speechSynthesis.cancel();
-          utter.onend = () => {
+
+          const resumeAfterTTS = () => {
+            if (!isSpeaking) return;
             isSpeaking = false;
             if (isLive) startLiveRecognition();
           };
-          utter.onerror = () => {
-            isSpeaking = false;
-            if (isLive) startLiveRecognition();
-          };
+
+          utter.onend = resumeAfterTTS;
+          utter.onerror = resumeAfterTTS;
+
+          // fallback: estimate duration from text length + 3sec buffer
+          const fallbackMs = Math.max(3000, translation.length * 120);
+          const fallbackTimer = setTimeout(resumeAfterTTS, fallbackMs);
+
+          utter.onend = () => { clearTimeout(fallbackTimer); resumeAfterTTS(); };
+          utter.onerror = () => { clearTimeout(fallbackTimer); resumeAfterTTS(); };
+
           speechSynthesis.speak(utter);
+
+          // Chrome bug: speechSynthesis pauses after ~15s, keepalive workaround
+          const keepAlive = setInterval(() => {
+            if (!isSpeaking) { clearInterval(keepAlive); return; }
+            if (speechSynthesis.paused) speechSynthesis.resume();
+          }, 5000);
         } catch (err) {
           document.getElementById('live-interim').textContent = '⚠ ' + err.message;
           setTimeout(() => { if (isLive) startLiveRecognition(); }, 1500);

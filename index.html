@@ -533,10 +533,17 @@
   <!-- live mode -->
   <div id="live-mode" style="display:none;">
     <div class="card">
-      <div id="live-panel">
-        <div class="live-indicator"><span class="live-dot"></span>LIVE</div>
-        <div id="live-text">音声を検出すると自動翻訳します...</div>
+      <div style="font-size:11px;color:var(--text-sub);letter-spacing:1px;margin-bottom:10px;">
+        設定した2言語を自動で交互に認識・翻訳します
       </div>
+      <!-- live conversation log -->
+      <div id="live-log" style="min-height:120px;max-height:260px;overflow-y:auto;margin-bottom:10px;display:flex;flex-direction:column;gap:8px;">
+        <div style="color:var(--text-sub);font-size:12px;text-align:center;padding:20px 0;">⚡ ライブ開始を押してください</div>
+      </div>
+      <!-- current recognizing -->
+      <div id="live-interim" style="font-size:13px;color:var(--text-sub);min-height:20px;margin-bottom:10px;font-style:italic;"></div>
+      <!-- which lang is listening -->
+      <div id="live-listener" style="display:none;font-size:11px;letter-spacing:1px;color:var(--accent);margin-bottom:8px;"></div>
       <div class="speech-row">
         <button class="mic-btn" id="liveMicBtn" onclick="toggleLive()">⚡ ライブ開始</button>
       </div>
@@ -768,50 +775,183 @@ function toggleMic() {
   recognition.start();
 }
 
-function toggleLive() {
-  if (isLive) {
-    liveRecognition?.stop();
-    isLive = false;
-    document.getElementById('liveMicBtn').textContent = '⚡ ライブ開始';
-    document.getElementById('liveMicBtn').classList.remove('listening');
-    document.getElementById('live-panel').classList.remove('active');
-    return;
+// Bidirectional live interpretation (AI language detection)
+let liveDebounce = null;
+let isSpeaking = false;
+
+function addLiveLog(detectedLang, translateTo, srcText, tgtText) {
+  const log = document.getElementById('live-log');
+  const placeholder = log.querySelector('[data-placeholder]');
+  if (placeholder) placeholder.remove();
+
+  const srcOpts = document.getElementById('srcLang').options;
+  const tgtOpts = document.getElementById('tgtLang').options;
+  const srcFlag = srcOpts[srcOpts.selectedIndex].text.split(' ')[0];
+  const tgtFlag = tgtOpts[tgtOpts.selectedIndex].text.split(' ')[0];
+  const fromFlag = detectedLang === document.getElementById('srcLang').value ? srcFlag : tgtFlag;
+  const toFlag   = detectedLang === document.getElementById('srcLang').value ? tgtFlag : srcFlag;
+
+  const el = document.createElement('div');
+  el.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;';
+  el.innerHTML = `
+    <div style="font-size:10px;color:var(--accent);letter-spacing:1px;margin-bottom:4px;">${fromFlag} → ${toFlag}</div>
+    <div style="color:var(--text-sub);margin-bottom:3px;">${srcText}</div>
+    <div style="color:var(--text);">→ ${tgtText}</div>
+  `;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function callAI_detect(text, srcLang, tgtLang) {
+  const groqKey  = document.getElementById('groqKey').value.trim();
+  const gemmaKey = document.getElementById('gemmaKey').value.trim();
+  if (!groqKey && !gemmaKey) throw new Error('APIキーを入力してください');
+
+  const srcName = LANG_NAMES[srcLang] || srcLang;
+  const tgtName = LANG_NAMES[tgtLang] || tgtLang;
+
+  const prompt = `You are a bilingual interpreter between ${srcName} and ${tgtName}.
+The user said: "${text}"
+First, detect whether this text is in ${srcName} or ${tgtName}.
+Then translate it to the OTHER language.
+Respond in JSON only, no markdown:
+{"detected": "src" or "tgt", "translation": "translated text here"}`;
+
+  const useGroq = groqKey && (document.getElementById('btnGroq').classList.contains('active') || !gemmaKey);
+
+  if (useGroq) {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + groqKey },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 512,
+        temperature: 0.1
+      })
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Groqエラー'); }
+    const data = await res.json();
+    const raw = data.choices?.[0]?.message?.content?.trim() || '{}';
+    const clean = raw.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } else {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${gemmaKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 512 }
+        })
+      }
+    );
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Gemmaエラー'); }
+    const data = await res.json();
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '{}';
+    const clean = raw.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
   }
-  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-    setStatus('statusLive', '音声認識非対応', 'error'); return;
-  }
+}
+
+function startLiveRecognition() {
+  if (!isLive) return;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   liveRecognition = new SR();
+  // Use srcLang for recognition base (Web Speech API needs some lang hint)
+  // AI will correct the detection regardless
   liveRecognition.lang = TTS_LANG[document.getElementById('srcLang').value] || 'ja-JP';
   liveRecognition.interimResults = true;
-  liveRecognition.continuous = true;
-  let debounce = null;
+  liveRecognition.continuous = false;
+
   liveRecognition.onresult = (e) => {
     const last = e.results[e.results.length - 1];
     const text = last[0].transcript;
-    document.getElementById('live-text').textContent = '🎤 ' + text;
+    document.getElementById('live-interim').textContent = '🎤 ' + text;
+
     if (last.isFinal) {
-      clearTimeout(debounce);
-      debounce = setTimeout(async () => {
+      clearTimeout(liveDebounce);
+      liveDebounce = setTimeout(async () => {
+        if (isSpeaking) return; // skip if TTS is playing
+        document.getElementById('live-interim').textContent = '⚡ AI判定・翻訳中...';
+        const srcLang = document.getElementById('srcLang').value;
+        const tgtLang = document.getElementById('tgtLang').value;
         try {
-          const result = await callAI(text, document.getElementById('srcLang').value, document.getElementById('tgtLang').value);
-          document.getElementById('live-text').textContent = '→ ' + result;
-          const utter = new SpeechSynthesisUtterance(result);
-          utter.lang = TTS_LANG[document.getElementById('tgtLang').value] || 'en-US';
+          const result = await callAI_detect(text, srcLang, tgtLang);
+          const detectedKey = result.detected === 'src' ? srcLang : tgtLang;
+          const translateTo  = result.detected === 'src' ? tgtLang : srcLang;
+          const translation  = result.translation || '翻訳失敗';
+
+          document.getElementById('live-interim').textContent = '';
+          addLiveLog(detectedKey, translateTo, text, translation);
+          addHistory(text, translation, detectedKey, translateTo);
+
+          // TTS
+          isSpeaking = true;
+          const utter = new SpeechSynthesisUtterance(translation);
+          utter.lang = TTS_LANG[translateTo] || 'en-US';
           speechSynthesis.cancel();
+          utter.onend = () => {
+            isSpeaking = false;
+            if (isLive) startLiveRecognition();
+          };
+          utter.onerror = () => {
+            isSpeaking = false;
+            if (isLive) startLiveRecognition();
+          };
           speechSynthesis.speak(utter);
         } catch (err) {
-          document.getElementById('live-text').textContent = '⚠ ' + err.message;
+          document.getElementById('live-interim').textContent = '⚠ ' + err.message;
+          setTimeout(() => { if (isLive) startLiveRecognition(); }, 1500);
         }
-      }, 300);
+      }, 400);
     }
   };
-  liveRecognition.onend = () => { if (isLive) liveRecognition.start(); };
+
+  liveRecognition.onerror = (e) => {
+    if (e.error === 'no-speech') {
+      if (isLive && !isSpeaking) startLiveRecognition();
+    } else {
+      setStatus('statusLive', '音声エラー: ' + e.error, 'error');
+    }
+  };
+
+  liveRecognition.onend = () => {
+    // restart handled in onresult/onerror
+  };
+
   liveRecognition.start();
+}
+
+function toggleLive() {
+  if (isLive) {
+    liveRecognition?.stop();
+    speechSynthesis.cancel();
+    isLive = false;
+    isSpeaking = false;
+    document.getElementById('liveMicBtn').textContent = '⚡ ライブ開始';
+    document.getElementById('liveMicBtn').classList.remove('listening');
+    document.getElementById('live-listener').style.display = 'none';
+    document.getElementById('live-interim').textContent = '';
+    setStatus('statusLive', '停止しました');
+    return;
+  }
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    setStatus('statusLive', '音声認識非対応（Chrome/Edgeをお使いください）', 'error'); return;
+  }
+  if (document.getElementById('srcLang').value === document.getElementById('tgtLang').value) {
+    setStatus('statusLive', '異なる言語を選択してください', 'error'); return;
+  }
+  document.getElementById('live-log').innerHTML = '<div data-placeholder style="color:var(--text-sub);font-size:12px;text-align:center;padding:10px 0;">会話ログがここに表示されます</div>';
+  document.getElementById('live-listener').style.display = 'block';
+  document.getElementById('live-listener').textContent = '🌐 話しかけてください（言語を自動判定します）';
   isLive = true;
+  isSpeaking = false;
   document.getElementById('liveMicBtn').textContent = '⏹ 停止';
   document.getElementById('liveMicBtn').classList.add('listening');
-  document.getElementById('live-panel').classList.add('active');
+  setStatus('statusLive', '');
+  startLiveRecognition();
 }
 
 function addHistory(src, result, srcLang, tgtLang) {

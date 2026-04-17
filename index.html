@@ -486,7 +486,7 @@
       </div>
     </div>
     <div class="status" id="statusText"></div>
-    <button class="translate-btn" id="translateBtn" onclick="translate()">⚡ TRANSLATE</button>
+    <button class="translate-btn" id="translateBtn" onclick="doTranslate()">⚡ TRANSLATE</button>
   </div>
 
   <!-- voice mode -->
@@ -642,7 +642,7 @@ async function callAI(text, srcLang, tgtLang) {
   return data.choices?.[0]?.message?.content?.trim() || '翻訳失敗';
 }
 
-async function translate() {
+async function doTranslate() {
   const src = document.getElementById('srcText').value.trim();
   if (!src) { setStatus('statusText', 'テキストを入力してください', 'error'); return; }
   const srcLang = document.getElementById('srcLang').value;

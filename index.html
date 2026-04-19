@@ -395,6 +395,23 @@
   .history-langs { font-size:10px; color:var(--accent); letter-spacing:1px; margin-bottom:3px; }
   .history-source { color:var(--text-sub); margin-bottom:3px; }
   .history-result { color:var(--text); }
+
+  /* Shadow mode */
+  .shadow-speed-btn {
+    background:var(--surface2);
+    border:1px solid var(--border);
+    color:var(--text-sub);
+    border-radius:8px;
+    padding:6px 14px;
+    font-size:12px;
+    cursor:pointer;
+    transition:all .2s;
+  }
+  .shadow-speed-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .shadow-speed-btn.active { background:rgba(0,229,255,0.15); border-color:var(--accent); color:var(--accent); font-weight:700; }
+  .shadow-word { cursor:pointer; border-radius:4px; padding:1px 3px; transition:background .15s; }
+  .shadow-word:hover { background:rgba(0,229,255,0.15); }
+  .shadow-word.hl { background:rgba(0,229,255,0.3); color:#fff; }
 </style>
 </head>
 <body>
@@ -415,6 +432,7 @@
       <button class="tab active" onclick="setMode('text')">📝 テキスト</button>
       <button class="tab" onclick="setMode('voice')">🎙️ 音声入力</button>
       <button class="tab" onclick="setMode('live')">⚡ ライブ</button>
+      <button class="tab" onclick="setMode('shadow')">🎬 シャドーイング</button>
     </div>
   </div>
 
@@ -545,6 +563,88 @@
     </div>
   </div>
 
+  <!-- shadow mode -->
+  <div id="shadow-mode" style="display:none;">
+
+    <!-- YouTube URL -->
+    <div class="card">
+      <div class="card-title">🎬 YouTube URL</div>
+      <div style="display:flex;gap:8px;">
+        <input id="shadowUrl" type="text" class="apikey-input" placeholder="https://www.youtube.com/watch?v=..." style="font-size:13px;">
+        <button class="show-btn" onclick="shadowLoadVideo()" style="background:linear-gradient(135deg,var(--accent2),var(--accent));color:#fff;border-color:transparent;">Load</button>
+      </div>
+    </div>
+
+    <!-- Player -->
+    <div id="shadowPlayerCard" class="card" style="display:none;padding:0;overflow:hidden;">
+      <div style="position:relative;padding-bottom:56.25%;background:#000;">
+        <div id="shadowYtPlayer"></div>
+      </div>
+
+      <!-- Speed -->
+      <div style="padding:14px 16px;border-top:1px solid var(--border);background:var(--surface2);">
+        <div class="card-title" style="margin-bottom:8px;">⏱ 速度調整</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="shadow-speed-btn" onclick="shadowSetSpeed(0.5,this)">×0.5</button>
+          <button class="shadow-speed-btn" onclick="shadowSetSpeed(0.75,this)">×0.75</button>
+          <button class="shadow-speed-btn active" onclick="shadowSetSpeed(1.0,this)">×1.0</button>
+          <button class="shadow-speed-btn" onclick="shadowSetSpeed(1.25,this)">×1.25</button>
+          <button class="shadow-speed-btn" onclick="shadowSetSpeed(1.5,this)">×1.5</button>
+        </div>
+      </div>
+
+      <!-- AB Repeat -->
+      <div style="padding:14px 16px;border-top:1px solid var(--border);">
+        <div class="card-title" style="margin-bottom:8px;">🔁 AB区間リピート</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button class="icon-btn" onclick="shadowSetA()">A点セット</button>
+          <button class="icon-btn" onclick="shadowSetB()">B点セット</button>
+          <span id="shadowAbDisplay" style="font-size:12px;color:var(--text-sub);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-family:monospace;">A: --  B: --</span>
+          <button class="icon-btn" id="shadowAbToggle" onclick="shadowToggleAB()">AB OFF</button>
+          <button class="icon-btn" onclick="shadowClearAB()" style="color:#f44336;border-color:rgba(244,67,54,0.4);">クリア</button>
+        </div>
+      </div>
+
+      <!-- Script -->
+      <div style="padding:14px 16px;border-top:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div class="card-title" style="margin-bottom:0;">📄 スクリプト</div>
+          <button class="icon-btn" onclick="shadowFetchScript()">✨ AI生成</button>
+        </div>
+        <div id="shadowScriptInput">
+          <textarea id="shadowScriptText" style="height:100px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-size:14px;line-height:1.7;resize:vertical;outline:none;" placeholder="スクリプトを貼り付けるか「AI生成」を押してください..."></textarea>
+          <button class="icon-btn" onclick="shadowRenderScript()" style="margin-top:8px;">表示する</button>
+        </div>
+        <div id="shadowScriptDisplay" style="display:none;">
+          <div id="shadowScriptWords" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:15px;line-height:2;min-height:60px;"></div>
+          <button class="icon-btn" onclick="shadowEditScript()" style="margin-top:8px;">✏️ 編集</button>
+        </div>
+        <div id="shadowScriptStatus" class="status"></div>
+      </div>
+
+      <!-- Recording -->
+      <div style="padding:14px 16px;border-top:1px solid var(--border);">
+        <div class="card-title" style="margin-bottom:10px;">🎙️ 録音して比較</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+          <button class="mic-btn" id="shadowRecBtn" onclick="shadowToggleRecord()" style="flex:none;padding:10px 20px;font-size:14px;">● REC</button>
+          <button class="icon-btn" onclick="shadowPlayback()">▶ 再生</button>
+          <button class="icon-btn" onclick="shadowSaveRecording()" style="color:var(--accent);border-color:rgba(0,229,255,0.4);">保存</button>
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-sub);">
+            <div id="shadowRecDot" style="width:9px;height:9px;border-radius:50%;background:var(--text-sub);transition:background .3s;"></div>
+            <span id="shadowRecStatus">待機中</span>
+          </div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px;">
+          <canvas id="shadowWaveCanvas" style="display:block;width:100%;height:70px;"></canvas>
+          <div style="font-size:10px;letter-spacing:1px;color:var(--text-sub);padding:5px 12px;border-top:1px solid var(--border);">WAVEFORM</div>
+        </div>
+        <div id="shadowRecordingsList"><div style="color:var(--text-sub);font-size:13px;text-align:center;padding:20px 0;">まだ録音がありません</div></div>
+      </div>
+    </div>
+
+    <div class="status" id="statusShadow"></div>
+  </div>
+
   <!-- history -->
   <div id="historySection" style="display:none;">
     <div class="history-title">
@@ -598,11 +698,12 @@ function toggleShow(id, btn) {
 function setMode(m) {
   mode = m;
   document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['text','voice','live'][i] === m);
+    t.classList.toggle('active', ['text','voice','live','shadow'][i] === m);
   });
-  document.getElementById('text-mode').style.display  = m === 'text'  ? 'block' : 'none';
-  document.getElementById('voice-mode').style.display = m === 'voice' ? 'block' : 'none';
-  document.getElementById('live-mode').style.display  = m === 'live'  ? 'block' : 'none';
+  document.getElementById('text-mode').style.display   = m === 'text'   ? 'block' : 'none';
+  document.getElementById('voice-mode').style.display  = m === 'voice'  ? 'block' : 'none';
+  document.getElementById('live-mode').style.display   = m === 'live'   ? 'block' : 'none';
+  document.getElementById('shadow-mode').style.display = m === 'shadow' ? 'block' : 'none';
 }
 
 function swapLangs() {
@@ -899,6 +1000,238 @@ function clearHistory() {
   localStorage.removeItem('interpretHistory');
   renderHistory();
 }
+// ═══════════════════════════════
+// SHADOW MODE
+// ═══════════════════════════════
+let shadowPlayer = null;
+let shadowAbA = null, shadowAbB = null, shadowAbActive = false, shadowAbInterval = null;
+let shadowMediaRecorder = null, shadowAudioChunks = [], shadowIsRecording = false;
+let shadowAudioBlob = null, shadowAudioCtx = null, shadowAnalyser = null, shadowAnimFrame = null;
+let shadowRecordings = [], shadowRecCount = 0;
+
+function shadowExtractId(url) {
+  const m = url.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+function shadowLoadVideo() {
+  const url = document.getElementById('shadowUrl').value.trim();
+  const vid = shadowExtractId(url);
+  if (!vid) { shadowStatus('有効なYouTube URLを入力してください','error'); return; }
+  document.getElementById('shadowPlayerCard').style.display = 'block';
+  loadYTAPI();
+  const tryCreate = () => {
+    if (typeof YT === 'undefined' || !YT.Player) { setTimeout(tryCreate, 300); return; }
+    if (shadowPlayer) { shadowPlayer.loadVideoById(vid); return; }
+    shadowPlayer = new YT.Player('shadowYtPlayer', {
+      videoId: vid,
+      playerVars: { rel: 0, modestbranding: 1 }
+    });
+  };
+  tryCreate();
+  shadowStatus('動画を読み込んでいます...','ok');
+}
+
+function loadYTAPI() {
+  if (document.getElementById('_ytApi')) return;
+  const s = document.createElement('script');
+  s.id = '_ytApi';
+  s.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(s);
+}
+
+window.onYouTubeIframeAPIReady = function() {};
+
+function shadowSetSpeed(s, el) {
+  if (shadowPlayer && shadowPlayer.setPlaybackRate) shadowPlayer.setPlaybackRate(s);
+  document.querySelectorAll('.shadow-speed-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function shadowFmtTime(t) {
+  const m = Math.floor(t/60), s = Math.floor(t%60).toString().padStart(2,'0');
+  return `${m}:${s}`;
+}
+
+function shadowGetTime() {
+  return (shadowPlayer && shadowPlayer.getCurrentTime) ? shadowPlayer.getCurrentTime() : 0;
+}
+
+function shadowUpdateAB() {
+  const a = shadowAbA !== null ? shadowFmtTime(shadowAbA) : '--';
+  const b = shadowAbB !== null ? shadowFmtTime(shadowAbB) : '--';
+  const el = document.getElementById('shadowAbDisplay');
+  el.textContent = `A: ${a}  B: ${b}`;
+  el.style.color = (shadowAbA !== null && shadowAbB !== null) ? 'var(--accent)' : '';
+}
+
+function shadowSetA() { shadowAbA = shadowGetTime(); shadowUpdateAB(); }
+function shadowSetB() { shadowAbB = shadowGetTime(); shadowUpdateAB(); }
+
+function shadowToggleAB() {
+  if (shadowAbA === null || shadowAbB === null) { shadowStatus('A点とB点を両方セットしてください','error'); return; }
+  shadowAbActive = !shadowAbActive;
+  const btn = document.getElementById('shadowAbToggle');
+  btn.textContent = shadowAbActive ? 'AB ON' : 'AB OFF';
+  btn.style.color = shadowAbActive ? 'var(--accent)' : '';
+  btn.style.borderColor = shadowAbActive ? 'rgba(0,229,255,0.5)' : '';
+  if (shadowAbActive) {
+    if (shadowPlayer) shadowPlayer.seekTo(shadowAbA);
+    shadowAbInterval = setInterval(() => {
+      if (!shadowPlayer || !shadowAbActive) return;
+      if (shadowPlayer.getCurrentTime() >= shadowAbB) shadowPlayer.seekTo(shadowAbA);
+    }, 300);
+  } else {
+    clearInterval(shadowAbInterval);
+  }
+}
+
+function shadowClearAB() {
+  shadowAbA = null; shadowAbB = null; shadowAbActive = false;
+  clearInterval(shadowAbInterval);
+  const btn = document.getElementById('shadowAbToggle');
+  btn.textContent = 'AB OFF'; btn.style.color = ''; btn.style.borderColor = '';
+  shadowUpdateAB();
+}
+
+async function shadowFetchScript() {
+  const url = document.getElementById('shadowUrl').value.trim();
+  if (!url) { shadowStatus('まずYouTube URLを入力してください','error'); return; }
+  document.getElementById('shadowScriptStatus').textContent = '✨ AIがスクリプトを生成中...';
+  document.getElementById('shadowScriptStatus').className = 'status';
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        messages:[{role:'user',content:`YouTube URL: ${url}\nこの動画のトピックに合わせた英語シャドーイング練習用スクリプト（100〜150語）を生成してください。スクリプト本文のみ返してください。`}]
+      })
+    });
+    const data = await res.json();
+    document.getElementById('shadowScriptText').value = data.content?.[0]?.text || '';
+    setStatus('shadowScriptStatus','✓ スクリプト生成完了','ok');
+  } catch(e) {
+    setStatus('shadowScriptStatus','AI生成に失敗しました','error');
+  }
+}
+
+function shadowRenderScript() {
+  const text = document.getElementById('shadowScriptText').value.trim();
+  if (!text) { setStatus('shadowScriptStatus','スクリプトを入力してください','error'); return; }
+  const el = document.getElementById('shadowScriptWords');
+  el.innerHTML = text.split(/(\s+)/).map(w =>
+    w.trim() ? `<span class="shadow-word">${w}</span>` : w
+  ).join('');
+  document.getElementById('shadowScriptInput').style.display = 'none';
+  document.getElementById('shadowScriptDisplay').style.display = 'block';
+}
+
+function shadowEditScript() {
+  document.getElementById('shadowScriptInput').style.display = 'block';
+  document.getElementById('shadowScriptDisplay').style.display = 'none';
+}
+
+async function shadowToggleRecord() {
+  if (!shadowIsRecording) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      shadowAudioCtx = new AudioContext();
+      const src = shadowAudioCtx.createMediaStreamSource(stream);
+      shadowAnalyser = shadowAudioCtx.createAnalyser();
+      shadowAnalyser.fftSize = 256;
+      src.connect(shadowAnalyser);
+      shadowMediaRecorder = new MediaRecorder(stream);
+      shadowAudioChunks = [];
+      shadowMediaRecorder.ondataavailable = e => shadowAudioChunks.push(e.data);
+      shadowMediaRecorder.onstop = () => {
+        shadowAudioBlob = new Blob(shadowAudioChunks, {type:'audio/webm'});
+        if (shadowAnimFrame) cancelAnimationFrame(shadowAnimFrame);
+        if (shadowAudioCtx) shadowAudioCtx.close();
+        stream.getTracks().forEach(t=>t.stop());
+      };
+      shadowMediaRecorder.start();
+      shadowIsRecording = true;
+      document.getElementById('shadowRecBtn').textContent = '■ STOP';
+      document.getElementById('shadowRecBtn').style.borderColor = '#f44336';
+      document.getElementById('shadowRecBtn').style.color = '#f44336';
+      document.getElementById('shadowRecDot').style.background = '#f44336';
+      document.getElementById('shadowRecDot').style.animation = 'pulse 1s infinite';
+      document.getElementById('shadowRecStatus').textContent = '録音中...';
+      shadowDrawWave();
+    } catch(e) { shadowStatus('マイクへのアクセスが拒否されました','error'); }
+  } else {
+    shadowMediaRecorder.stop();
+    shadowIsRecording = false;
+    document.getElementById('shadowRecBtn').textContent = '● REC';
+    document.getElementById('shadowRecBtn').style.borderColor = '';
+    document.getElementById('shadowRecBtn').style.color = '';
+    document.getElementById('shadowRecDot').style.background = 'var(--text-sub)';
+    document.getElementById('shadowRecDot').style.animation = '';
+    document.getElementById('shadowRecStatus').textContent = '録音完了';
+  }
+}
+
+function shadowDrawWave() {
+  const canvas = document.getElementById('shadowWaveCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * devicePixelRatio;
+  canvas.height = 70 * devicePixelRatio;
+  const draw = () => {
+    if (!shadowAnalyser) return;
+    shadowAnimFrame = requestAnimationFrame(draw);
+    const buf = new Uint8Array(shadowAnalyser.frequencyBinCount);
+    shadowAnalyser.getByteTimeDomainData(buf);
+    ctx.fillStyle = '#12122a';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    buf.forEach((v,i) => {
+      const x = (i/buf.length)*canvas.width;
+      const y = (v/128)*(canvas.height/2);
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  };
+  draw();
+}
+
+function shadowPlayback() {
+  if (!shadowAudioBlob) { shadowStatus('先に録音してください','error'); return; }
+  new Audio(URL.createObjectURL(shadowAudioBlob)).play();
+}
+
+function shadowSaveRecording() {
+  if (!shadowAudioBlob) { shadowStatus('先に録音してください','error'); return; }
+  shadowRecCount++;
+  const url = URL.createObjectURL(shadowAudioBlob);
+  shadowRecordings.push({name:`Take ${shadowRecCount}`, url});
+  shadowRenderRecordings();
+}
+
+function shadowRenderRecordings() {
+  const el = document.getElementById('shadowRecordingsList');
+  if (!shadowRecordings.length) {
+    el.innerHTML = '<div style="color:var(--text-sub);font-size:13px;text-align:center;padding:20px 0;">まだ録音がありません</div>';
+    return;
+  }
+  el.innerHTML = shadowRecordings.map((r,i) => `
+    <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;">
+      <span style="font-size:11px;color:var(--text-sub);min-width:60px;">${r.name}</span>
+      <audio controls src="${r.url}" style="flex:1;height:30px;filter:invert(1) hue-rotate(180deg);"></audio>
+      <button class="icon-btn" onclick="shadowDeleteRec(${i})" style="color:#f44336;border-color:rgba(244,67,54,0.3);">✕</button>
+    </div>
+  `).join('');
+}
+
+function shadowDeleteRec(i) { shadowRecordings.splice(i,1); shadowRenderRecordings(); }
+
+function shadowStatus(msg, type='') {
+  setStatus('statusShadow', msg, type);
+}
+
 </script>
 </body>
 </html>

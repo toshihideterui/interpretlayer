@@ -1041,11 +1041,24 @@ function shadowExtractId(url) {
   return m ? m[1] : null;
 }
 
-function shadowLoadVideo() {
+async function shadowLoadVideo() {
   const url = document.getElementById('shadowUrl').value.trim();
   const vid = shadowExtractId(url);
   if (!vid) { shadowStatus('有効なYouTube URLを入力してください','error'); return; }
   document.getElementById('shadowPlayerCard').style.display = 'block';
+
+  // oEmbedでタイトル自動取得（タイトル欄が空の場合のみ）
+  const titleEl = document.getElementById('shadowSaveTitle');
+  if (!titleEl.value.trim()) {
+    try {
+      const r = await fetch('https://www.youtube.com/oembed?url=' + encodeURIComponent(url) + '&format=json');
+      if (r.ok) {
+        const d = await r.json();
+        if (d.title) titleEl.value = d.title;
+      }
+    } catch(e) {}
+  }
+
   loadYTAPI();
   const tryCreate = () => {
     if (typeof YT === 'undefined' || !YT.Player) { setTimeout(tryCreate, 300); return; }

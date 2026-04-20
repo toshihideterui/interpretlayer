@@ -1097,23 +1097,27 @@ function shadowClearAB() {
 async function shadowFetchScript() {
   const url = document.getElementById('shadowUrl').value.trim();
   if (!url) { shadowStatus('まずYouTube URLを入力してください','error'); return; }
+  const groqKey = document.getElementById('groqKey').value.trim();
+  if (!groqKey) { shadowStatus('Groq APIキーを入力してください','error'); return; }
   document.getElementById('shadowScriptStatus').textContent = '✨ AIがスクリプトを生成中...';
   document.getElementById('shadowScriptStatus').className = 'status';
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
       body: JSON.stringify({
-        model:'claude-sonnet-4-20250514',
+        model:'llama-3.3-70b-versatile',
         max_tokens:1000,
-        messages:[{role:'user',content:`YouTube URL: ${url}\nこの動画のトピックに合わせた英語シャドーイング練習用スクリプト（100〜150語）を生成してください。スクリプト本文のみ返してください。`}]
+        temperature:0.5,
+        messages:[{role:'user',content:'YouTube URL: '+url+'\nこの動画のトピックに合わせた英語シャドーイング練習用スクリプト（100〜150語）を生成してください。スクリプト本文のみ返してください。'}]
       })
     });
     const data = await res.json();
-    document.getElementById('shadowScriptText').value = data.content?.[0]?.text || '';
+    if (!res.ok) throw new Error(data.error?.message || 'Groqエラー');
+    document.getElementById('shadowScriptText').value = data.choices?.[0]?.message?.content?.trim() || '';
     setStatus('shadowScriptStatus','✓ スクリプト生成完了','ok');
   } catch(e) {
-    setStatus('shadowScriptStatus','AI生成に失敗しました','error');
+    setStatus('shadowScriptStatus', e.message || 'AI生成に失敗しました','error');
   }
 }
 

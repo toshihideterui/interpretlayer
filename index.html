@@ -609,10 +609,10 @@
       <div style="padding:14px 16px;border-top:1px solid var(--border);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <div class="card-title" style="margin-bottom:0;">📄 スクリプト</div>
-          <button class="icon-btn" onclick="shadowFetchScript()">✨ AI生成</button>
+          
         </div>
         <div id="shadowScriptInput">
-          <textarea id="shadowScriptText" style="height:100px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-size:14px;line-height:1.7;resize:vertical;outline:none;" placeholder="スクリプトを貼り付けるか「AI生成」を押してください..."></textarea>
+          <textarea id="shadowScriptText" style="height:100px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-size:14px;line-height:1.7;resize:vertical;outline:none;" placeholder="YouTubeの字幕をここに貼り付けてください..."></textarea>
           <button class="icon-btn" onclick="shadowRenderScript()" style="margin-top:8px;">表示する</button>
         </div>
         <div id="shadowScriptDisplay" style="display:none;">
@@ -1099,8 +1099,27 @@ async function shadowFetchScript() {
   if (!url) { shadowStatus('まずYouTube URLを入力してください','error'); return; }
   const groqKey = document.getElementById('groqKey').value.trim();
   if (!groqKey) { shadowStatus('Groq APIキーを入力してください','error'); return; }
-  document.getElementById('shadowScriptStatus').textContent = '✨ AIがスクリプトを生成中...';
+
+  document.getElementById('shadowScriptStatus').textContent = '📡 動画タイトルを取得中...';
   document.getElementById('shadowScriptStatus').className = 'status';
+
+  // Step1: oEmbed APIで動画タイトルを取得
+  let videoTitle = '';
+  try {
+    const oembedRes = await fetch('https://www.youtube.com/oembed?url=' + encodeURIComponent(url) + '&format=json');
+    if (oembedRes.ok) {
+      const oembedData = await oembedRes.json();
+      videoTitle = oembedData.title || '';
+    }
+  } catch(e) {}
+
+  document.getElementById('shadowScriptStatus').textContent = '✨ AIがスクリプトを生成中...';
+
+  // Step2: タイトルをGroqに渡してスクリプト生成
+  const topicInfo = videoTitle
+    ? 'この動画のタイトルは「' + videoTitle + '」です。'
+    : 'YouTube URL: ' + url;
+
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method:'POST',
@@ -1109,13 +1128,14 @@ async function shadowFetchScript() {
         model:'llama-3.3-70b-versatile',
         max_tokens:1000,
         temperature:0.5,
-        messages:[{role:'user',content:'YouTube URL: '+url+'\nこの動画のトピックに合わせた英語シャドーイング練習用スクリプト（100〜150語）を生成してください。スクリプト本文のみ返してください。'}]
+        messages:[{role:'user',content: topicInfo + '\nこの動画のトピックに合わせた英語シャドーイング練習用スクリプト（100〜150語）を生成してください。スクリプト本文のみ返してください。説明文は不要です。'}]
       })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error?.message || 'Groqエラー');
     document.getElementById('shadowScriptText').value = data.choices?.[0]?.message?.content?.trim() || '';
-    setStatus('shadowScriptStatus','✓ スクリプト生成完了','ok');
+    const label = videoTitle ? '✓ 「' + videoTitle + '」のスクリプト生成完了' : '✓ スクリプト生成完了';
+    setStatus('shadowScriptStatus', label, 'ok');
   } catch(e) {
     setStatus('shadowScriptStatus', e.message || 'AI生成に失敗しました','error');
   }

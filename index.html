@@ -624,8 +624,19 @@
           <div class="card-title" style="margin-bottom:0;">📄 スクリプト</div>
           
         </div>
+        <!-- 文字起こしコントロール -->
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+          <button class="icon-btn" id="shadowTranscribeBtn" onclick="shadowToggleTranscribe()" style="color:var(--accent);border-color:rgba(0,229,255,0.4);">🎤 文字起こし開始</button>
+          <button class="icon-btn" onclick="shadowClearTranscript()" style="color:#f44336;border-color:rgba(244,67,54,0.3);">クリア</button>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-sub);">
+            <div id="shadowTransDot" style="width:8px;height:8px;border-radius:50%;background:var(--text-sub);"></div>
+            <span id="shadowTransStatus">停止中</span>
+          </div>
+        </div>
+        <!-- リアルタイム認識中テキスト -->
+        <div id="shadowInterim" style="display:none;font-size:13px;color:var(--text-sub);font-style:italic;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:8px;min-height:32px;"></div>
         <div id="shadowScriptInput">
-          <textarea id="shadowScriptText" style="height:100px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-size:14px;line-height:1.7;resize:vertical;outline:none;" placeholder="YouTubeの字幕をここに貼り付けてください..."></textarea>
+          <textarea id="shadowScriptText" style="height:120px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-size:14px;line-height:1.7;resize:vertical;outline:none;" placeholder="「文字起こし開始」を押してYouTubeを再生すると自動入力されます。手動で貼り付けることもできます..."></textarea>
           <div style="display:flex;gap:8px;margin-top:8px;">
             <button class="icon-btn" onclick="shadowRenderScript()">表示する</button>
           </div>
@@ -1269,6 +1280,94 @@ function shadowRenderRecordings() {
 }
 
 function shadowDeleteRec(i) { shadowRecordings.splice(i,1); shadowRenderRecordings(); }
+
+// ── リアルタイム文字起こし（Web Speech API） ──
+let shadowTransRecognition = null;
+let shadowIsTranscribing = false;
+
+function shadowToggleTranscribe() {
+  if (shadowIsTranscribing) {
+    shadowStopTranscribe();
+  } else {
+    shadowStartTranscribe();
+  }
+}
+
+function shadowStartTranscribe() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    shadowStatus('このブラウザは非対応です。Chrome/Edgeをお使いください。', 'error');
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  shadowTransRecognition = new SR();
+  shadowTransRecognition.lang = 'en-US';
+  shadowTransRecognition.continuous = true;
+  shadowTransRecognition.interimResults = true;
+
+  shadowTransRecognition.onstart = () => {
+    shadowIsTranscribing = true;
+    document.getElementById('shadowTranscribeBtn').textContent = '⏹ 文字起こし停止';
+    document.getElementById('shadowTranscribeBtn').style.color = '#f44336';
+    document.getElementById('shadowTranscribeBtn').style.borderColor = 'rgba(244,67,54,0.4)';
+    document.getElementById('shadowTransDot').style.background = '#f44336';
+    document.getElementById('shadowTransDot').style.animation = 'pulse 1s infinite';
+    document.getElementById('shadowTransStatus').textContent = '認識中...';
+    document.getElementById('shadowInterim').style.display = 'block';
+  };
+
+  shadowTransRecognition.onresult = (e) => {
+    let interim = '';
+    let final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += t + ' ';
+      else interim += t;
+    }
+    // 確定テキストをtextareaに追記
+    if (final) {
+      const ta = document.getElementById('shadowScriptText');
+      ta.value = (ta.value + final).trim() + ' ';
+    }
+    // 認識中テキストをプレビュー表示
+    document.getElementById('shadowInterim').textContent = interim ? '🎤 ' + interim : '';
+  };
+
+  shadowTransRecognition.onerror = (e) => {
+    if (e.error === 'no-speech') return; // 無音は無視
+    shadowStatus('音声認識エラー: ' + e.error, 'error');
+    shadowStopTranscribe();
+  };
+
+  shadowTransRecognition.onend = () => {
+    // continuous=trueでも切れる場合があるので再起動
+    if (shadowIsTranscribing) {
+      try { shadowTransRecognition.start(); } catch(e) {}
+    }
+  };
+
+  shadowTransRecognition.start();
+}
+
+function shadowStopTranscribe() {
+  shadowIsTranscribing = false;
+  if (shadowTransRecognition) {
+    shadowTransRecognition.onend = null;
+    shadowTransRecognition.stop();
+  }
+  document.getElementById('shadowTranscribeBtn').textContent = '🎤 文字起こし開始';
+  document.getElementById('shadowTranscribeBtn').style.color = 'var(--accent)';
+  document.getElementById('shadowTranscribeBtn').style.borderColor = 'rgba(0,229,255,0.4)';
+  document.getElementById('shadowTransDot').style.background = 'var(--text-sub)';
+  document.getElementById('shadowTransDot').style.animation = '';
+  document.getElementById('shadowTransStatus').textContent = '停止中';
+  document.getElementById('shadowInterim').style.display = 'none';
+  document.getElementById('shadowInterim').textContent = '';
+}
+
+function shadowClearTranscript() {
+  document.getElementById('shadowScriptText').value = '';
+  document.getElementById('shadowInterim').textContent = '';
+}
 
 // ── 保存済み動画 ──
 function shadowSaveVideo() {

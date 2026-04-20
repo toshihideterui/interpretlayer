@@ -569,10 +569,23 @@
     <!-- YouTube URL -->
     <div class="card">
       <div class="card-title">🎬 YouTube URL</div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
         <input id="shadowUrl" type="text" class="apikey-input" placeholder="https://www.youtube.com/watch?v=..." style="font-size:13px;">
         <button class="show-btn" onclick="shadowLoadVideo()" style="background:linear-gradient(135deg,var(--accent2),var(--accent));color:#fff;border-color:transparent;">Load</button>
       </div>
+      <div style="display:flex;gap:8px;">
+        <input id="shadowSaveTitle" type="text" class="apikey-input" placeholder="動画タイトル（任意）" style="font-size:13px;">
+        <button class="show-btn" onclick="shadowSaveVideo()" style="background:var(--surface2);color:var(--accent);border-color:rgba(0,229,255,0.4);">💾 保存</button>
+      </div>
+    </div>
+
+    <!-- 保存済みリスト -->
+    <div id="shadowSavedSection" class="card" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="card-title" style="margin-bottom:0;">📚 保存済み動画</div>
+        <button class="icon-btn" onclick="shadowClearAll()" style="color:#f44336;border-color:rgba(244,67,54,0.3);font-size:11px;">全削除</button>
+      </div>
+      <div id="shadowSavedList"></div>
     </div>
 
     <!-- Player -->
@@ -613,7 +626,9 @@
         </div>
         <div id="shadowScriptInput">
           <textarea id="shadowScriptText" style="height:100px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-size:14px;line-height:1.7;resize:vertical;outline:none;" placeholder="YouTubeの字幕をここに貼り付けてください..."></textarea>
-          <button class="icon-btn" onclick="shadowRenderScript()" style="margin-top:8px;">表示する</button>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="icon-btn" onclick="shadowRenderScript()">表示する</button>
+          </div>
         </div>
         <div id="shadowScriptDisplay" style="display:none;">
           <div id="shadowScriptWords" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:15px;line-height:2;min-height:60px;"></div>
@@ -704,6 +719,7 @@ function setMode(m) {
   document.getElementById('voice-mode').style.display  = m === 'voice'  ? 'block' : 'none';
   document.getElementById('live-mode').style.display   = m === 'live'   ? 'block' : 'none';
   document.getElementById('shadow-mode').style.display = m === 'shadow' ? 'block' : 'none';
+  if (m === 'shadow') shadowRenderSaved();
 }
 
 function swapLangs() {
@@ -1251,6 +1267,70 @@ function shadowRenderRecordings() {
 }
 
 function shadowDeleteRec(i) { shadowRecordings.splice(i,1); shadowRenderRecordings(); }
+
+// ── 保存済み動画 ──
+function shadowSaveVideo() {
+  const url = document.getElementById('shadowUrl').value.trim();
+  if (!url) { shadowStatus('URLを入力してください','error'); return; }
+  const script = document.getElementById('shadowScriptText').value.trim();
+  const titleInput = document.getElementById('shadowSaveTitle').value.trim();
+  const title = titleInput || url;
+
+  const saves = JSON.parse(localStorage.getItem('shadowSaves') || '[]');
+  // 同じURLが既にあれば上書き
+  const idx = saves.findIndex(s => s.url === url);
+  const entry = { title, url, script, savedAt: Date.now() };
+  if (idx >= 0) saves[idx] = entry;
+  else saves.unshift(entry);
+  localStorage.setItem('shadowSaves', JSON.stringify(saves));
+  shadowStatus('✓ 保存しました：' + title, 'ok');
+  shadowRenderSaved();
+}
+
+function shadowRenderSaved() {
+  const saves = JSON.parse(localStorage.getItem('shadowSaves') || '[]');
+  const section = document.getElementById('shadowSavedSection');
+  const list = document.getElementById('shadowSavedList');
+  if (!saves.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  list.innerHTML = saves.map((s, i) => `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="font-size:13px;color:var(--text);font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.title}</div>
+        <div style="display:flex;gap:6px;margin-left:8px;flex-shrink:0;">
+          <button class="icon-btn" onclick="shadowLoadSaved(${i})" style="color:var(--accent);border-color:rgba(0,229,255,0.4);font-size:11px;">読込</button>
+          <button class="icon-btn" onclick="shadowDeleteSaved(${i})" style="color:#f44336;border-color:rgba(244,67,54,0.3);font-size:11px;">✕</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.url}</div>
+      ${s.script ? '<div style="font-size:11px;color:var(--text-sub);margin-top:4px;">📄 スクリプトあり</div>' : ''}
+    </div>
+  `).join('');
+}
+
+function shadowLoadSaved(i) {
+  const saves = JSON.parse(localStorage.getItem('shadowSaves') || '[]');
+  const s = saves[i];
+  if (!s) return;
+  document.getElementById('shadowUrl').value = s.url;
+  document.getElementById('shadowSaveTitle').value = s.title;
+  if (s.script) document.getElementById('shadowScriptText').value = s.script;
+  shadowLoadVideo();
+  shadowStatus('✓ 「' + s.title + '」を読み込みました', 'ok');
+}
+
+function shadowDeleteSaved(i) {
+  const saves = JSON.parse(localStorage.getItem('shadowSaves') || '[]');
+  saves.splice(i, 1);
+  localStorage.setItem('shadowSaves', JSON.stringify(saves));
+  shadowRenderSaved();
+}
+
+function shadowClearAll() {
+  if (!confirm('保存済み動画をすべて削除しますか？')) return;
+  localStorage.removeItem('shadowSaves');
+  shadowRenderSaved();
+}
 
 function shadowStatus(msg, type='') {
   setStatus('statusShadow', msg, type);

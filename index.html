@@ -1184,14 +1184,15 @@ async function shadowToggleRecord() {
       src.connect(shadowAnalyser);
       shadowMediaRecorder = new MediaRecorder(stream);
       shadowAudioChunks = [];
-      shadowMediaRecorder.ondataavailable = e => shadowAudioChunks.push(e.data);
+      shadowMediaRecorder.ondataavailable = e => { if (e.data.size > 0) shadowAudioChunks.push(e.data); };
       shadowMediaRecorder.onstop = () => {
         shadowAudioBlob = new Blob(shadowAudioChunks, {type:'audio/webm'});
         if (shadowAnimFrame) cancelAnimationFrame(shadowAnimFrame);
         if (shadowAudioCtx) shadowAudioCtx.close();
         stream.getTracks().forEach(t=>t.stop());
+        document.getElementById('shadowRecStatus').textContent = '録音完了 ▶ 再生できます';
       };
-      shadowMediaRecorder.start();
+      shadowMediaRecorder.start(100);
       shadowIsRecording = true;
       document.getElementById('shadowRecBtn').textContent = '■ STOP';
       document.getElementById('shadowRecBtn').style.borderColor = '#f44336';
@@ -1240,7 +1241,8 @@ function shadowDrawWave() {
 
 function shadowPlayback() {
   if (!shadowAudioBlob) { shadowStatus('先に録音してください','error'); return; }
-  new Audio(URL.createObjectURL(shadowAudioBlob)).play();
+  const audio = new Audio(URL.createObjectURL(shadowAudioBlob));
+  audio.play().catch(() => shadowStatus('再生に失敗しました','error'));
 }
 
 function shadowSaveRecording() {
